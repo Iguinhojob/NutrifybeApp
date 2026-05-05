@@ -1,24 +1,23 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { AuthProvider } from '@/context/auth';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    <AuthProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="auth/login" />
+        <Stack.Screen name="auth/register" />
+        <Stack.Screen name="auth/about-you" />
+        <Stack.Screen name="auth/success" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="institutional/about" options={{ headerShown: true, title: 'Sobre Nós', headerTintColor: '#4CAF50' }} />
+        <Stack.Screen name="institutional/privacy" options={{ headerShown: true, title: 'Política de Privacidade', headerTintColor: '#4CAF50' }} />
+        <Stack.Screen name="institutional/terms" options={{ headerShown: true, title: 'Termos e Condições', headerTintColor: '#4CAF50' }} />
+        <Stack.Screen name="institutional/settings" options={{ headerShown: true, title: 'Configurações', headerTintColor: '#4CAF50' }} />
       </Stack>
       <StatusBar style="auto" />
-    </ThemeProvider>
+    </AuthProvider>
   );
 }
