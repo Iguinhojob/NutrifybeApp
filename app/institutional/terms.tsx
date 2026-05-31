@@ -1,4 +1,5 @@
-import { useTheme } from '@/context/theme';
+import { usePremiumTheme } from '@/context/theme';
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const SECTIONS = [
@@ -12,27 +13,29 @@ const SECTIONS = [
 ];
 
 export default function TermsScreen() {
-  const { colors } = useTheme();
-  const s = styles(colors);
+  const { colors, isDark } = usePremiumTheme();
+  const s = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content}>
+    <ScrollView style={s.screen} contentContainerStyle={s.scroll}>
       <Text style={s.updated}>Última atualização: Janeiro 2025</Text>
       {SECTIONS.map(section => (
-        <View key={section.title} style={s.section}>
-          <Text style={s.sectionTitle}>{section.title}</Text>
-          <Text style={s.sectionText}>{section.text}</Text>
+        <View key={section.title} style={s.card}>
+          <Text style={s.cardTitle}>{section.title}</Text>
+          <Text style={s.cardText}>{section.text}</Text>
         </View>
       ))}
     </ScrollView>
   );
 }
 
-const styles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 20, gap: 12 },
-  updated: { fontSize: 13, color: colors.textSecondary, marginBottom: 4 },
-  section: { backgroundColor: colors.card, borderRadius: 14, padding: 16, gap: 8, borderWidth: 1, borderColor: colors.border },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.primary },
-  sectionText: { fontSize: 14, color: colors.textSecondary, lineHeight: 22 },
-});
+function createStyles(colors: any, isDark: boolean) {
+  return StyleSheet.create({
+    screen:    { flex: 1, backgroundColor: colors.bg },
+    scroll:    { padding: 20, gap: 12 },
+    updated:   { fontSize: 13, color: colors.textMuted, marginBottom: 4, fontWeight: '500' },
+    card:      { backgroundColor: colors.surface, borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: colors.border },
+    cardTitle: { fontSize: 15, fontWeight: '800', color: colors.primary },
+    cardText:  { fontSize: 14, color: colors.textMuted, lineHeight: 22, fontWeight: '500' },
+  });
+}

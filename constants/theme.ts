@@ -1,106 +1,165 @@
+// ─── Paleta base ────────────────────────────────────────────────────────────
+const palette = {
+  purple:      '#7C5CBF',
+  purpleLight: '#A78BDA',
+  purpleSoft:  '#EDE8F8',
+  purpleCard:  '#F5F0FD',
+  mint:        '#86ef98',   // auth screens bg
+  green:       '#22C55E',
+  greenSoft:   '#DCFCE7',
+  gold:        '#D4F53C',   // CTA / badge
+  lilac:       '#C8AFE8',   // decorative bubbles
+  pink:        '#F9A8D4',   // decorative bubbles
+  red:         '#EF4444',
+  redSoft:     '#FEE2E2',
+  yellow:      '#F59E0B',
+  yellowSoft:  '#FEF3C7',
+  blue:        '#3B82F6',
+};
+
+// ─── Tema claro ──────────────────────────────────────────────────────────────
 export const lightPremium = {
-  bg: '#f6f4f6',
-  surface: '#ffffff',
-  surface2: '#fcfbfd',
-  surface3: '#f4eff8',
-  border: '#d8d3db',
-  text: '#171232',
-  textMuted: '#69646f',
-  textDim: '#9c97a2',
-  gold: '#d8fb3d',
-  purpleAccent: '#c8afe8',
-  purpleSoft: '#efe5fb',
-  chipActiveBg: '#efe5fb',
-  ctaContrastBg: '#d8fb3d',
-  ctaContrastText: '#171232',
-  navBg: 'rgba(255,255,255,0.94)',
-  bubbleMe: '#efe5fb',
-  authScreenBg: '#f6f4f6',
-  authCardBg: '#ffffff',
-  authTopTint: '#efe5fb',
-  inputBg: '#fcfbfd',
-  mintBannerBg: '#f7fee7',
-  mintBannerBorder: '#d8fb3d',
-  aiBannerBg: '#efe5fb',
-  aiBannerBorder: '#c8afe8',
-  primary: '#22C55E',
-  primaryDark: '#15803D',
-  primarySoft: '#DCFCE7',
-  danger: '#EF4444',
-  warning: '#FFC107',
-  success: '#22C55E',
-  // compat
-  background: '#f6f4f6',
-  card: '#ffffff',
-  tabBar: 'rgba(255,255,255,0.94)',
-  tabBarActive: '#171232',
-  tabBarInactive: '#9c97a2',
-  textSecondary: '#69646f',
-  white: '#ffffff',
-  green: '#22C55E',
-  yellow: '#FFC107',
-  red: '#EF4444',
-  secondary: '#c8afe8',
-  primaryLight: '#DCFCE7',
-  primaryDarkColor: '#15803D',
+  // Fundos
+  bg:          '#F4F1F9',
+  surface:     '#FFFFFF',
+  surface2:    '#FAF8FD',
+  surface3:    '#EDE8F8',
+
+  // Bordas
+  border:      '#DDD8E8',
+
+  // Textos
+  text:        '#1A1035',
+  textMuted:   '#6B6480',
+  textDim:     '#A89FC0',
+
+  // Marca / acento
+  primary:     palette.purple,
+  primaryDark: '#5B3FA0',
+  primarySoft: palette.purpleSoft,
+  purpleAccent: palette.purpleLight,
+  purpleSoft:  palette.purpleSoft,
+  purpleCard:  palette.purpleCard,
+
+  // CTA
+  gold:            palette.gold,
+  ctaContrastBg:   palette.gold,
+  ctaContrastText: '#1A1035',
+
+  // Semânticas
+  success:     palette.green,
+  successSoft: palette.greenSoft,
+  danger:      palette.red,
+  dangerSoft:  palette.redSoft,
+  warning:     palette.yellow,
+  warningSoft: palette.yellowSoft,
+  green:       palette.green,
+  yellow:      palette.yellow,
+  red:         palette.red,
+
+  // Nav / banners
+  navBg:          'rgba(244,241,249,0.96)',
+  bubbleMe:        palette.purpleSoft,
+  aiBannerBg:      palette.purpleSoft,
+  aiBannerBorder:  palette.lilac,
+  mintBannerBg:    '#F0FDF4',
+  mintBannerBorder: palette.green,
+  chipActiveBg:    palette.purpleSoft,
+
+  // Auth
+  authScreenBg: palette.mint,
+  authCardBg:   '#FFFFFF',
+
+  // Input
+  inputBg: '#FAF8FD',
+
+  // Compat aliases (para arquivos legados)
+  background:    '#F4F1F9',
+  card:          '#FFFFFF',
+  tabBar:        'rgba(244,241,249,0.96)',
+  tabBarActive:  '#1A1035',
+  tabBarInactive:'#A89FC0',
+  textSecondary: '#6B6480',
+  white:         '#FFFFFF',
+  secondary:     palette.purpleLight,
+  primaryLight:  palette.purpleSoft,
+  primaryDarkColor: '#5B3FA0',
+
+  // icon (para collapsible legado)
+  icon: '#6B6480',
 };
 
+// ─── Tema escuro ─────────────────────────────────────────────────────────────
 export const darkPremium = {
-  bg: '#110f1a',
-  surface: '#1a1627',
-  surface2: '#241f35',
-  surface3: '#302a45',
-  border: '#433b57',
-  text: '#f8f5ff',
-  textMuted: '#c8c0d9',
-  textDim: '#8d84a3',
-  gold: '#d8fb3d',
-  purpleAccent: '#c8afe8',
-  purpleSoft: '#342c4e',
-  chipActiveBg: '#342c4e',
-  ctaContrastBg: '#d8fb3d',
-  ctaContrastText: '#171232',
-  navBg: 'rgba(26,22,39,0.96)',
-  bubbleMe: '#342c4e',
-  authScreenBg: '#110f1a',
-  authCardBg: '#1a1627',
-  authTopTint: '#342c4e',
-  inputBg: '#241f35',
-  mintBannerBg: '#1a2a1a',
-  mintBannerBorder: '#d8fb3d',
-  aiBannerBg: '#342c4e',
-  aiBannerBorder: '#c8afe8',
-  primary: '#22C55E',
-  primaryDark: '#15803D',
-  primarySoft: '#14532D',
-  danger: '#EF4444',
-  warning: '#FFC107',
-  success: '#22C55E',
-  // compat
-  background: '#110f1a',
-  card: '#1a1627',
-  tabBar: 'rgba(26,22,39,0.96)',
-  tabBarActive: '#f8f5ff',
-  tabBarInactive: '#8d84a3',
-  textSecondary: '#c8c0d9',
-  white: '#f8f5ff',
-  green: '#22C55E',
-  yellow: '#FFC107',
-  red: '#EF4444',
-  secondary: '#c8afe8',
-  primaryLight: '#14532D',
-  primaryDarkColor: '#15803D',
+  bg:          '#0F0C1A',
+  surface:     '#1C1730',
+  surface2:    '#251F3D',
+  surface3:    '#2E2748',
+
+  border:      '#3D3560',
+
+  text:        '#F0ECFF',
+  textMuted:   '#B8B0D0',
+  textDim:     '#7A7295',
+
+  primary:     '#9B7FD4',
+  primaryDark: '#7C5CBF',
+  primarySoft: '#2E2748',
+  purpleAccent: '#C4A8F0',
+  purpleSoft:  '#2E2748',
+  purpleCard:  '#251F3D',
+
+  gold:            palette.gold,
+  ctaContrastBg:   palette.gold,
+  ctaContrastText: '#0F0C1A',
+
+  success:     '#34D399',
+  successSoft: '#064E3B',
+  danger:      '#F87171',
+  dangerSoft:  '#450A0A',
+  warning:     '#FBBF24',
+  warningSoft: '#451A03',
+  green:       '#34D399',
+  yellow:      '#FBBF24',
+  red:         '#F87171',
+
+  navBg:          'rgba(15,12,26,0.97)',
+  bubbleMe:        '#2E2748',
+  aiBannerBg:      '#2E2748',
+  aiBannerBorder:  '#7A7295',
+  mintBannerBg:    '#064E3B',
+  mintBannerBorder: '#34D399',
+  chipActiveBg:    '#2E2748',
+
+  authScreenBg: '#0F0C1A',
+  authCardBg:   '#1C1730',
+  inputBg:      '#251F3D',
+
+  background:    '#0F0C1A',
+  card:          '#1C1730',
+  tabBar:        'rgba(15,12,26,0.97)',
+  tabBarActive:  '#F0ECFF',
+  tabBarInactive:'#7A7295',
+  textSecondary: '#B8B0D0',
+  white:         '#F0ECFF',
+  secondary:     '#C4A8F0',
+  primaryLight:  '#2E2748',
+  primaryDarkColor: '#7C5CBF',
+
+  icon: '#B8B0D0',
 };
 
+// ─── Paleta editorial (telas de auth) ────────────────────────────────────────
 export const editorialPalette = {
-  mint: '#86ef98',
-  text: '#171232',
-  surface: '#ffffff',
-  lilac: '#c8afe8',
-  pink: '#f9a8d4',
-  border: '#d8d3db',
+  mint:    palette.mint,
+  text:    '#1A1035',
+  surface: '#FFFFFF',
+  lilac:   palette.lilac,
+  pink:    palette.pink,
+  border:  '#DDD8E8',
 };
 
+// ─── Exports de compatibilidade ──────────────────────────────────────────────
 export const LightColors = lightPremium;
-export const DarkColors = darkPremium;
-export const Colors = lightPremium;
+export const DarkColors  = darkPremium;
+export const Colors      = lightPremium;
