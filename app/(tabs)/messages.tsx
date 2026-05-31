@@ -1,76 +1,144 @@
 import { usePremiumTheme } from '@/context/theme';
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import {
+  FlatList, Image, KeyboardAvoidingView, Platform,
+  ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-type Message = { id: number; text: string; from: 'user' | 'ai' | 'nutri'; time: string };
+// ─── Dados de exemplo ────────────────────────────────────────────────────────
+const NUTRITIONISTS = [
+  {
+    id: '1',
+    name: 'Dra. Ana Beatriz',
+    specialty: 'Nutrição Esportiva',
+    crn: 'CRN-3 12345',
+    rating: 4.9,
+    patients: 128,
+    online: true,
+    avatar: '👩‍⚕️',
+    bio: 'Especialista em nutrição esportiva e emagrecimento. 8 anos de experiência.',
+    initialMsg: 'Olá! Sou a Dra. Ana Beatriz, sua nutricionista. Como posso ajudar você hoje?',
+  },
+  {
+    id: '2',
+    name: 'Dr. Carlos Mendes',
+    specialty: 'Nutrição Clínica',
+    crn: 'CRN-3 67890',
+    rating: 4.7,
+    patients: 95,
+    online: false,
+    avatar: '👨‍⚕️',
+    bio: 'Foco em doenças crônicas, diabetes e hipertensão. Atendimento humanizado.',
+    initialMsg: 'Oi! Sou o Dr. Carlos. Estou aqui para te ajudar a alcançar seus objetivos nutricionais!',
+  },
+  {
+    id: '3',
+    name: 'Dra. Fernanda Lima',
+    specialty: 'Nutrição Funcional',
+    crn: 'CRN-3 54321',
+    rating: 4.8,
+    patients: 210,
+    online: true,
+    avatar: '👩‍💼',
+    bio: 'Nutrição funcional e integrativa. Especialista em saúde intestinal e imunidade.',
+    initialMsg: 'Olá! Sou a Dra. Fernanda. Vamos trabalhar juntos para melhorar sua saúde de forma integral?',
+  },
+];
+
+const NUTRI_RESPONSES: Record<string, string[]> = {
+  '1': [
+    'Para seu treino, recomendo aumentar a ingestão de carboidratos complexos 1h antes do exercício.',
+    'A proteína pós-treino é essencial! Tente consumir 20-30g em até 30 minutos após o exercício.',
+    'Hidratação é chave para a performance. Beba pelo menos 500ml antes de treinar.',
+    'Seu plano está ótimo! Vamos ajustar as calorias conforme sua evolução.',
+  ],
+  '2': [
+    'Para controle glicêmico, prefira alimentos de baixo índice glicêmico nas refeições principais.',
+    'Reduza o sódio gradualmente — isso ajuda muito no controle da pressão arterial.',
+    'Fibras solúveis são suas aliadas! Aveia, maçã e leguminosas são ótimas opções.',
+    'Vamos revisar seus exames na próxima consulta para ajustar o plano.',
+  ],
+  '3': [
+    'A saúde intestinal é a base de tudo. Inclua probióticos naturais como kefir e iogurte.',
+    'Alimentos anti-inflamatórios como cúrcuma, gengibre e ômega-3 fazem toda a diferença.',
+    'Seu microbioma agradece quando você varia os vegetais. Tente comer pelo menos 30 tipos por semana!',
+    'Vamos trabalhar na permeabilidade intestinal com uma dieta rica em prebióticos.',
+  ],
+};
 
 const AI_RESPONSES = [
-  'Ótima pergunta! Com base no seu perfil, recomendo aumentar a ingestão de proteínas no café da manhã.',
-  'Seu IMC está dentro da faixa saudável. Continue mantendo a consistência no plano alimentar!',
-  'Para o seu objetivo de perder peso, um déficit de 300-400 kcal/dia é o ideal para resultados sustentáveis.',
-  'Hidratação é fundamental! Tente beber pelo menos 2L de água por dia, especialmente antes das refeições.',
-  'Que tal adicionar mais vegetais coloridos no almoço? Eles são ricos em fibras e micronutrientes.',
+  'Com base no seu perfil, recomendo aumentar a ingestão de proteínas no café da manhã.',
+  'Seu IMC está dentro da faixa saudável. Continue mantendo a consistência no plano!',
+  'Para perder peso, um déficit de 300-400 kcal/dia é ideal para resultados sustentáveis.',
+  'Hidratação é fundamental! Beba pelo menos 2L de água por dia, especialmente antes das refeições.',
+  'Que tal adicionar mais vegetais coloridos no almoço? São ricos em fibras e micronutrientes.',
+  'O sono de qualidade é essencial para o metabolismo. Tente dormir 7-8h por noite.',
+  'Mastigar devagar ajuda na digestão e na saciedade. Tente 20 mastigadas por garfada!',
 ];
+
+type Msg = { id: number; text: string; from: 'user' | 'other'; time: string };
 
 function getTime() {
   return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function AiChat({ colors, isDark }: { colors: any; isDark: boolean }) {
+// ─── Chat genérico ────────────────────────────────────────────────────────────
+function ChatScreen({
+  title, subtitle, avatar, isAI, responses, initialMsg, colors, isDark, onBack,
+}: {
+  title: string; subtitle: string; avatar: string; isAI?: boolean;
+  responses: string[]; initialMsg: string;
+  colors: any; isDark: boolean; onBack: () => void;
+}) {
   const s = useMemo(() => chatStyles(colors, isDark), [colors, isDark]);
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, text: 'Olá! Sou a NutrIA, sua assistente de nutrição. Como posso ajudar hoje?', from: 'ai', time: getTime() },
+  const [messages, setMessages] = useState<Msg[]>([
+    { id: 1, text: initialMsg, from: 'other', time: getTime() },
   ]);
   const [input, setInput] = useState('');
-  const [mode, setMode] = useState<'nutria' | 'padrao'>('nutria');
   const [typing, setTyping] = useState(false);
+  const listRef = useRef<FlatList>(null);
 
-  const PROMPTS = ['Como melhorar minha dieta?', 'Calcular meu IMC', 'Sugestão de lanche saudável', 'Dicas de hidratação'];
+  const PROMPTS = isAI
+    ? ['Como melhorar minha dieta?', 'Sugestão de lanche', 'Dicas de hidratação', 'Calcular calorias']
+    : ['Revisar meu plano', 'Tenho uma dúvida', 'Ajustar refeições', 'Próxima consulta'];
 
   const send = (text?: string) => {
-    const msg = text || input.trim();
+    const msg = (text ?? input).trim();
     if (!msg) return;
-    const userMsg: Message = { id: Date.now(), text: msg, from: 'user', time: getTime() };
+    const userMsg: Msg = { id: Date.now(), text: msg, from: 'user', time: getTime() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setTyping(true);
     setTimeout(() => {
-      const reply = AI_RESPONSES[Math.floor(Math.random() * AI_RESPONSES.length)];
-      setMessages(prev => [...prev, { id: Date.now() + 1, text: reply, from: 'ai', time: getTime() }]);
+      const reply = responses[Math.floor(Math.random() * responses.length)];
+      setMessages(prev => [...prev, { id: Date.now() + 1, text: reply, from: 'other', time: getTime() }]);
       setTyping(false);
-    }, 1200);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    }, 1000 + Math.random() * 800);
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Orb visual */}
-      {messages.length === 1 && (
-        <View style={s.orbWrap}>
-          <View style={s.orb}>
-            <View style={s.orbInner} />
-            <View style={[s.orbHighlight, { top: 8, left: 12 }]} />
-            <View style={[s.orbHighlight, { bottom: 10, right: 10, width: 12, height: 12, opacity: 0.3 }]} />
-          </View>
-          <Text style={s.orbLabel}>NutrIA</Text>
-          <Text style={s.orbSub}>Modo {mode === 'nutria' ? 'Consultivo' : 'Direto'}</Text>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      {/* Header */}
+      <View style={s.header}>
+        <TouchableOpacity onPress={onBack} style={s.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
+        </TouchableOpacity>
+        <View style={s.headerAvatar}>
+          <Text style={{ fontSize: 22 }}>{avatar}</Text>
         </View>
-      )}
-
-      {/* Chips de modo */}
-      <View style={s.modeRow}>
-        {(['nutria', 'padrao'] as const).map(m => (
-          <TouchableOpacity key={m} style={[s.modeChip, mode === m && s.modeChipActive]} onPress={() => setMode(m)}>
-            <Text style={[s.modeChipText, mode === m && s.modeChipTextActive]}>
-              {m === 'nutria' ? '✦ Modo NutrIA' : 'Padrão'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <View style={s.headerInfo}>
+          <Text style={s.headerTitle}>{title}</Text>
+          <Text style={s.headerSub}>{subtitle}</Text>
+        </View>
+        <View style={[s.onlineDot, { backgroundColor: isAI ? colors.primary : '#F59E0B' }]} />
       </View>
 
-      {/* Prompt cards */}
+      {/* Prompt cards (só antes de enviar) */}
       {messages.length === 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.promptsScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.promptsScroll} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
           {PROMPTS.map(p => (
             <TouchableOpacity key={p} style={s.promptCard} onPress={() => send(p)}>
               <Text style={s.promptText}>{p}</Text>
@@ -80,41 +148,48 @@ function AiChat({ colors, isDark }: { colors: any; isDark: boolean }) {
       )}
 
       {/* Mensagens */}
-      <ScrollView style={s.msgList} contentContainerStyle={{ padding: 16, gap: 10 }}>
-        {messages.map(m => (
-          <View key={m.id} style={[s.msgRow, m.from === 'user' && s.msgRowUser]}>
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={m => String(m.id)}
+        contentContainerStyle={{ padding: 16, gap: 10 }}
+        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        renderItem={({ item: m }) => (
+          <View style={[s.msgRow, m.from === 'user' && s.msgRowUser]}>
             {m.from !== 'user' && (
-              <View style={s.aiAvatar}>
-                <Ionicons name="sparkles" size={14} color={colors.purpleAccent} />
+              <View style={s.otherAvatar}>
+                <Text style={{ fontSize: 14 }}>{avatar}</Text>
               </View>
             )}
-            <View style={[s.bubble, m.from === 'user' ? s.bubbleUser : s.bubbleAi]}>
+            <View style={[s.bubble, m.from === 'user' ? s.bubbleUser : s.bubbleOther]}>
               <Text style={[s.bubbleText, m.from === 'user' && s.bubbleTextUser]}>{m.text}</Text>
               <Text style={s.bubbleTime}>{m.time}</Text>
             </View>
           </View>
-        ))}
-        {typing && (
+        )}
+        ListFooterComponent={typing ? (
           <View style={s.msgRow}>
-            <View style={s.aiAvatar}><Ionicons name="sparkles" size={14} color={colors.purpleAccent} /></View>
-            <View style={s.bubbleAi}>
-              <Text style={s.typingDots}>● ● ●</Text>
+            <View style={s.otherAvatar}><Text style={{ fontSize: 14 }}>{avatar}</Text></View>
+            <View style={s.bubbleOther}>
+              <Text style={[s.bubbleText, { letterSpacing: 3 }]}>● ● ●</Text>
             </View>
           </View>
-        )}
-      </ScrollView>
+        ) : null}
+      />
 
       {/* Composer */}
       <View style={s.composer}>
         <TextInput
           style={s.composerInput}
-          placeholder="Pergunte à NutrIA..."
+          placeholder="Digite uma mensagem..."
           value={input}
           onChangeText={setInput}
           placeholderTextColor={colors.textDim}
           onSubmitEditing={() => send()}
+          returnKeyType="send"
+          multiline
         />
-        <TouchableOpacity style={s.sendBtn} onPress={() => send()}>
+        <TouchableOpacity style={[s.sendBtn, { opacity: input.trim() ? 1 : 0.4 }]} onPress={() => send()}>
           <Ionicons name="arrow-up" size={18} color={colors.bg} />
         </TouchableOpacity>
       </View>
@@ -122,142 +197,180 @@ function AiChat({ colors, isDark }: { colors: any; isDark: boolean }) {
   );
 }
 
+// ─── Tela principal ───────────────────────────────────────────────────────────
+type View_ = 'hub' | 'ai' | { nutriId: string };
+
 export default function MessagesHubScreen() {
   const { colors, isDark } = usePremiumTheme();
   const s = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
-  const [tab, setTab] = useState<'hub' | 'ai' | 'nutri'>('hub');
+  const [view, setView] = useState<View_>('hub');
 
-  if (tab === 'ai') {
+  // Chat NutrIA
+  if (view === 'ai') {
     return (
-      <View style={s.screen}>
-        <View style={s.chatHeader}>
-          <TouchableOpacity onPress={() => setTab('hub')} style={s.backBtn}>
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={s.chatHeaderTitle}>NutrIA</Text>
-          <View style={[s.onlineDot, { backgroundColor: colors.primary }]} />
-        </View>
-        <AiChat colors={colors} isDark={isDark} />
-      </View>
+      <ChatScreen
+        title="NutrIA"
+        subtitle="Assistente de IA · Online"
+        avatar="✦"
+        isAI
+        responses={AI_RESPONSES}
+        initialMsg="Olá! Sou a NutrIA, sua assistente de nutrição inteligente. Como posso ajudar hoje?"
+        colors={colors}
+        isDark={isDark}
+        onBack={() => setView('hub')}
+      />
     );
   }
 
-  if (tab === 'nutri') {
+  // Chat com nutricionista
+  if (typeof view === 'object' && 'nutriId' in view) {
+    const nutri = NUTRITIONISTS.find(n => n.id === view.nutriId)!;
     return (
-      <View style={s.screen}>
-        <View style={s.chatHeader}>
-          <TouchableOpacity onPress={() => setTab('hub')} style={s.backBtn}>
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={s.chatHeaderTitle}>Nutricionista</Text>
-          <View style={[s.onlineDot, { backgroundColor: '#FFC107' }]} />
-        </View>
-        <View style={s.nutriPlaceholder}>
-          <Ionicons name="person-circle-outline" size={64} color={colors.textDim} />
-          <Text style={s.nutriTitle}>Nenhum nutricionista vinculado</Text>
-          <Text style={s.nutriSub}>Busque um nutricionista para iniciar o acompanhamento personalizado.</Text>
-          <TouchableOpacity style={[s.findBtn, { backgroundColor: colors.ctaContrastBg }]}>
-            <Text style={[s.findBtnText, { color: colors.ctaContrastText }]}>Buscar nutricionista</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ChatScreen
+        title={nutri.name}
+        subtitle={`${nutri.specialty} · ${nutri.online ? 'Online' : 'Offline'}`}
+        avatar={nutri.avatar}
+        responses={NUTRI_RESPONSES[nutri.id]}
+        initialMsg={nutri.initialMsg}
+        colors={colors}
+        isDark={isDark}
+        onBack={() => setView('hub')}
+      />
     );
   }
 
+  // Hub principal
   return (
     <View style={s.screen}>
-      <ScrollView contentContainerStyle={s.scroll}>
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <Text style={s.title}>Mensagens</Text>
         <Text style={s.subtitle}>Seu hub de comunicação</Text>
 
-        <TouchableOpacity style={[s.hubCard, { backgroundColor: colors.aiBannerBg, borderColor: colors.aiBannerBorder }]} onPress={() => setTab('ai')}>
-          <View style={s.hubCardIcon}>
-            <Ionicons name="sparkles" size={28} color={colors.purpleAccent} />
+        {/* NutrIA */}
+        <TouchableOpacity
+          style={[s.hubCard, { backgroundColor: colors.aiBannerBg, borderColor: colors.aiBannerBorder }]}
+          onPress={() => setView('ai')}
+        >
+          <View style={[s.hubAvatar, { backgroundColor: colors.purpleSoft }]}>
+            <Ionicons name="sparkles" size={26} color={colors.purpleAccent} />
           </View>
-          <View style={s.hubCardInfo}>
-            <Text style={[s.hubCardTitle, { color: colors.text }]}>NutrIA</Text>
-            <Text style={[s.hubCardSub, { color: colors.textMuted }]}>Assistente de nutrição com IA</Text>
-            <View style={[s.onlineBadge, { backgroundColor: colors.primary + '20' }]}>
-              <View style={[s.onlineDot, { backgroundColor: colors.primary }]} />
-              <Text style={[s.onlineBadgeText, { color: colors.primary }]}>Online agora</Text>
+          <View style={s.hubInfo}>
+            <Text style={s.hubName}>NutrIA</Text>
+            <Text style={s.hubSpec}>Assistente de nutrição com IA</Text>
+            <View style={[s.badge, { backgroundColor: colors.primary + '20' }]}>
+              <View style={[s.badgeDot, { backgroundColor: colors.primary }]} />
+              <Text style={[s.badgeText, { color: colors.primary }]}>Online agora</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[s.hubCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => setTab('nutri')}>
-          <View style={[s.hubCardIcon, { backgroundColor: colors.surface3 }]}>
-            <Ionicons name="person-outline" size={28} color={colors.text} />
-          </View>
-          <View style={s.hubCardInfo}>
-            <Text style={[s.hubCardTitle, { color: colors.text }]}>Nutricionista</Text>
-            <Text style={[s.hubCardSub, { color: colors.textMuted }]}>Acompanhamento personalizado</Text>
-            <View style={[s.onlineBadge, { backgroundColor: '#FFC10720' }]}>
-              <View style={[s.onlineDot, { backgroundColor: '#FFC107' }]} />
-              <Text style={[s.onlineBadgeText, { color: '#FFC107' }]}>Aguardando vínculo</Text>
+        {/* Nutricionistas */}
+        <Text style={s.sectionTitle}>Nutricionistas disponíveis</Text>
+        {NUTRITIONISTS.map(n => (
+          <TouchableOpacity
+            key={n.id}
+            style={[s.nutriCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => setView({ nutriId: n.id })}
+          >
+            <View style={s.nutriTop}>
+              <View style={[s.nutriAvatar, { backgroundColor: colors.purpleSoft }]}>
+                <Text style={{ fontSize: 28 }}>{n.avatar}</Text>
+                {n.online && <View style={s.onlineIndicator} />}
+              </View>
+              <View style={s.nutriInfo}>
+                <Text style={s.nutriName}>{n.name}</Text>
+                <Text style={s.nutriSpec}>{n.specialty}</Text>
+                <Text style={s.nutriCrn}>{n.crn}</Text>
+              </View>
+              <View style={s.nutriStats}>
+                <View style={s.ratingRow}>
+                  <Ionicons name="star" size={12} color={colors.gold} />
+                  <Text style={s.ratingText}>{n.rating}</Text>
+                </View>
+                <Text style={s.patientsText}>{n.patients} pacientes</Text>
+              </View>
             </View>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-        </TouchableOpacity>
+            <Text style={s.nutriBio}>{n.bio}</Text>
+            <View style={s.nutriFooter}>
+              <View style={[s.badge, { backgroundColor: n.online ? colors.primary + '20' : colors.border }]}>
+                <View style={[s.badgeDot, { backgroundColor: n.online ? colors.primary : colors.textDim }]} />
+                <Text style={[s.badgeText, { color: n.online ? colors.primary : colors.textMuted }]}>
+                  {n.online ? 'Online' : 'Offline'}
+                </Text>
+              </View>
+              <View style={[s.chatBtn, { backgroundColor: colors.ctaContrastBg }]}>
+                <Ionicons name="chatbubble-outline" size={13} color={colors.ctaContrastText} />
+                <Text style={[s.chatBtnText, { color: colors.ctaContrastText }]}>Iniciar chat</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        ))}
+
+        <View style={{ height: 100 }} />
       </ScrollView>
     </View>
   );
 }
 
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 function createStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg },
-    scroll: { padding: 20, paddingTop: 56, gap: 14 },
-    title: { fontSize: 26, fontWeight: '900', color: colors.text, letterSpacing: -1 },
-    subtitle: { fontSize: 14, color: colors.textMuted, fontWeight: '500', marginBottom: 8 },
-    hubCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 18, borderWidth: 1, gap: 14 },
-    hubCardIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: colors.purpleSoft, alignItems: 'center', justifyContent: 'center' },
-    hubCardInfo: { flex: 1, gap: 4 },
-    hubCardTitle: { fontSize: 17, fontWeight: '800' },
-    hubCardSub: { fontSize: 13, fontWeight: '500' },
-    onlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' },
-    onlineDot: { width: 6, height: 6, borderRadius: 3 },
-    onlineBadgeText: { fontSize: 11, fontWeight: '700' },
-    chatHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 12 },
-    backBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-    chatHeaderTitle: { flex: 1, fontSize: 17, fontWeight: '800', color: colors.text },
-    nutriPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
-    nutriTitle: { fontSize: 18, fontWeight: '800', color: colors.text, textAlign: 'center' },
-    nutriSub: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
-    findBtn: { borderRadius: 999, paddingHorizontal: 24, paddingVertical: 14, marginTop: 8 },
-    findBtnText: { fontSize: 15, fontWeight: '800' },
+    screen:       { flex: 1, backgroundColor: colors.bg },
+    scroll:       { padding: 20, paddingTop: 56, gap: 12 },
+    title:        { fontSize: 26, fontWeight: '900', color: colors.text, letterSpacing: -1 },
+    subtitle:     { fontSize: 14, color: colors.textMuted, fontWeight: '500', marginBottom: 4 },
+    sectionTitle: { fontSize: 13, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
+    hubCard:      { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 16, borderWidth: 1, gap: 14 },
+    hubAvatar:    { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    hubInfo:      { flex: 1, gap: 4 },
+    hubName:      { fontSize: 16, fontWeight: '800', color: colors.text },
+    hubSpec:      { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
+    nutriCard:    { borderRadius: 20, padding: 16, borderWidth: 1, gap: 10 },
+    nutriTop:     { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+    nutriAvatar:  { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+    onlineIndicator: { position: 'absolute', bottom: 2, right: 2, width: 12, height: 12, borderRadius: 6, backgroundColor: '#22C55E', borderWidth: 2, borderColor: '#fff' },
+    nutriInfo:    { flex: 1 },
+    nutriName:    { fontSize: 15, fontWeight: '800', color: colors.text },
+    nutriSpec:    { fontSize: 13, color: colors.purpleAccent, fontWeight: '600', marginTop: 1 },
+    nutriCrn:     { fontSize: 11, color: colors.textDim, fontWeight: '500', marginTop: 1 },
+    nutriStats:   { alignItems: 'flex-end', gap: 4 },
+    ratingRow:    { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    ratingText:   { fontSize: 13, fontWeight: '800', color: colors.text },
+    patientsText: { fontSize: 11, color: colors.textMuted, fontWeight: '500' },
+    nutriBio:     { fontSize: 13, color: colors.textMuted, lineHeight: 19, fontWeight: '500' },
+    nutriFooter:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    badge:        { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+    badgeDot:     { width: 6, height: 6, borderRadius: 3 },
+    badgeText:    { fontSize: 11, fontWeight: '700' },
+    chatBtn:      { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
+    chatBtnText:  { fontSize: 12, fontWeight: '800' },
   });
 }
 
 function chatStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
-    orbWrap: { alignItems: 'center', paddingTop: 24, paddingBottom: 8, gap: 8 },
-    orb: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.purpleSoft, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-    orbInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.purpleAccent, opacity: 0.6 },
-    orbHighlight: { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff', opacity: 0.5 },
-    orbLabel: { fontSize: 16, fontWeight: '900', color: colors.text },
-    orbSub: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
-    modeRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
-    modeChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-    modeChipActive: { backgroundColor: colors.purpleSoft, borderColor: colors.purpleAccent },
-    modeChipText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
-    modeChipTextActive: { color: colors.text },
-    promptsScroll: { paddingHorizontal: 16, marginBottom: 8 },
-    promptCard: { backgroundColor: colors.surface, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, marginRight: 8, borderWidth: 1, borderColor: colors.border },
-    promptText: { fontSize: 13, fontWeight: '600', color: colors.text },
-    msgList: { flex: 1 },
-    msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-    msgRowUser: { flexDirection: 'row-reverse' },
-    aiAvatar: { width: 28, height: 28, borderRadius: 10, backgroundColor: colors.purpleSoft, alignItems: 'center', justifyContent: 'center' },
-    bubble: { maxWidth: '75%', borderRadius: 18, padding: 12 },
-    bubbleAi: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-    bubbleUser: { backgroundColor: colors.bubbleMe },
-    bubbleText: { fontSize: 14, color: colors.text, lineHeight: 20, fontWeight: '500' },
-    bubbleTextUser: { color: colors.text },
-    bubbleTime: { fontSize: 10, color: colors.textDim, marginTop: 4, textAlign: 'right' },
-    typingDots: { fontSize: 16, color: colors.purpleAccent, letterSpacing: 4 },
-    composer: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg },
-    composerInput: { flex: 1, backgroundColor: colors.surface, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.border },
-    sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
+    header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
+    backBtn:      { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    headerAvatar: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.purpleSoft, alignItems: 'center', justifyContent: 'center' },
+    headerInfo:   { flex: 1 },
+    headerTitle:  { fontSize: 15, fontWeight: '800', color: colors.text },
+    headerSub:    { fontSize: 11, color: colors.textMuted, fontWeight: '500' },
+    onlineDot:    { width: 10, height: 10, borderRadius: 5 },
+    promptsScroll:{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+    promptCard:   { backgroundColor: colors.surface, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: colors.border },
+    promptText:   { fontSize: 13, fontWeight: '600', color: colors.text },
+    msgRow:       { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 4 },
+    msgRowUser:   { flexDirection: 'row-reverse' },
+    otherAvatar:  { width: 30, height: 30, borderRadius: 10, backgroundColor: colors.purpleSoft, alignItems: 'center', justifyContent: 'center' },
+    bubble:       { maxWidth: '75%', borderRadius: 18, padding: 12 },
+    bubbleOther:  { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    bubbleUser:   { backgroundColor: colors.primary },
+    bubbleText:   { fontSize: 14, color: colors.text, lineHeight: 20, fontWeight: '500' },
+    bubbleTextUser:{ color: '#fff' },
+    bubbleTime:   { fontSize: 10, color: colors.textDim, marginTop: 4, textAlign: 'right' },
+    composer:     { flexDirection: 'row', alignItems: 'flex-end', gap: 10, padding: 12, paddingBottom: Platform.OS === 'ios' ? 28 : 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg },
+    composerInput:{ flex: 1, backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.border, maxHeight: 100 },
+    sendBtn:      { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   });
 }
