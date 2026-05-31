@@ -103,11 +103,7 @@ export default function SplashScreen() {
         />
       </Animated.View>
 
-      {/* Sombra dinâmica */}
-      <Animated.View style={[styles.shadow, {
-        transform: [{ scaleX: float.interpolate({ inputRange: [-14, 0], outputRange: [0.6, 1] }) }],
-        opacity:   float.interpolate({ inputRange: [-14, 0], outputRange: [0.15, 0.4] }),
-      }]} />
+
 
       {/* Título com cores diferentes por parte */}
       <View style={styles.titleRow}>

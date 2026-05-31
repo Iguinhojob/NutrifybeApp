@@ -1,51 +1,70 @@
-import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth';
+import { usePremiumTheme } from '@/context/theme';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ProfileScreen() {
   const { user, updateUser, logout } = useAuth();
+  const { colors, isDark, toggleTheme } = usePremiumTheme();
+  const s = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const [editing, setEditing] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
   const [form, setForm] = useState({ name: user?.name || '', weight: user?.weight || '', height: user?.height || '', goal: user?.goal || '' });
 
-  const save = () => {
-    updateUser(form);
-    setEditing(false);
-    Alert.alert('Sucesso', 'Perfil atualizado!');
-  };
-
-  const handleLogout = () => {
-    logout();
-    router.replace('/auth/login');
-  };
-
+  const save = () => { updateUser(form); setEditing(false); Alert.alert('Sucesso', 'Perfil atualizado!'); };
   const set = (key: string) => (val: string) => setForm(f => ({ ...f, [key]: val }));
+  const handleLogout = () => { logout(); router.replace('/auth/login'); };
+
+  const bmi = user?.weight && user?.height
+    ? (parseFloat(user.weight) / Math.pow(parseFloat(user.height) / 100, 2)).toFixed(1)
+    : '—';
 
   const menuItems = [
-    { icon: '⚙️', label: 'Configurações', onPress: () => router.push('/institutional/settings') },
-    { icon: 'ℹ️', label: 'Sobre Nós', onPress: () => router.push('/institutional/about') },
-    { icon: '📋', label: 'Termos e Condições', onPress: () => router.push('/institutional/terms') },
-    { icon: '🔒', label: 'Política de Privacidade', onPress: () => router.push('/institutional/privacy') },
-    { icon: '🚪', label: 'Sair da Conta', onPress: () => setLogoutModal(true), danger: true },
+    { icon: 'moon-outline' as const, label: isDark ? 'Modo claro' : 'Modo escuro', onPress: toggleTheme },
+    { icon: 'settings-outline' as const, label: 'Configurações', onPress: () => router.push('/institutional/settings') },
+    { icon: 'information-circle-outline' as const, label: 'Sobre Nós', onPress: () => router.push('/institutional/about') },
+    { icon: 'document-text-outline' as const, label: 'Termos e Condições', onPress: () => router.push('/institutional/terms') },
+    { icon: 'shield-checkmark-outline' as const, label: 'Política de Privacidade', onPress: () => router.push('/institutional/privacy') },
+    { icon: 'log-out-outline' as const, label: 'Sair da Conta', onPress: () => setLogoutModal(true), danger: true },
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.avatarSection}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>
+    <ScrollView style={s.screen} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      {/* Avatar */}
+      <View style={s.avatarSection}>
+        <View style={s.avatar}>
+          <Text style={s.avatarText}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>
         </View>
-        <Text style={styles.userName}>{user?.name}</Text>
-        <Text style={styles.userEmail}>{user?.email}</Text>
+        <Text style={s.userName}>{user?.name}</Text>
+        <Text style={s.userEmail}>{user?.email}</Text>
+        <View style={[s.goalBadge, { backgroundColor: colors.purpleSoft }]}>
+          <Text style={[s.goalBadgeText, { color: colors.text }]}>{user?.goal || 'Sem objetivo'}</Text>
+        </View>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Dados Pessoais</Text>
+      {/* Métricas rápidas */}
+      <View style={s.metricsRow}>
+        {[
+          { label: 'Peso', value: `${user?.weight || '—'}kg` },
+          { label: 'Altura', value: `${user?.height || '—'}cm` },
+          { label: 'IMC', value: bmi },
+          { label: 'Meta', value: `${user?.targetWeight || '—'}kg` },
+        ].map(m => (
+          <View key={m.label} style={[s.metricCard, { backgroundColor: colors.surface }]}>
+            <Text style={s.metricValue}>{m.value}</Text>
+            <Text style={s.metricLabel}>{m.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Dados pessoais */}
+      <View style={[s.card, { backgroundColor: colors.surface }]}>
+        <View style={s.cardHeader}>
+          <Text style={s.cardTitle}>Dados Pessoais</Text>
           <TouchableOpacity onPress={() => setEditing(!editing)}>
-            <Text style={styles.editBtn}>{editing ? 'Cancelar' : 'Editar'}</Text>
+            <Text style={[s.editBtn, { color: colors.purpleAccent }]}>{editing ? 'Cancelar' : 'Editar'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -55,84 +74,97 @@ export default function ProfileScreen() {
           { key: 'height', label: 'Altura (cm)', keyboard: 'numeric' as const },
           { key: 'goal', label: 'Objetivo', keyboard: 'default' as const },
         ].map(({ key, label, keyboard }) => (
-          <View key={key} style={styles.field}>
-            <Text style={styles.fieldLabel}>{label}</Text>
+          <View key={key} style={s.field}>
+            <Text style={s.fieldLabel}>{label}</Text>
             {editing ? (
-              <TextInput style={styles.fieldInput} value={form[key as keyof typeof form]} onChangeText={set(key)} keyboardType={keyboard} placeholderTextColor={Colors.textSecondary} />
+              <TextInput style={[s.fieldInput, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]} value={form[key as keyof typeof form]} onChangeText={set(key)} keyboardType={keyboard} placeholderTextColor={colors.textDim} />
             ) : (
-              <Text style={styles.fieldValue}>{user?.[key as keyof typeof user] || '—'}</Text>
+              <Text style={s.fieldValue}>{user?.[key as keyof typeof user] || '—'}</Text>
             )}
           </View>
         ))}
 
         {editing && (
-          <TouchableOpacity style={styles.saveBtn} onPress={save}>
-            <Text style={styles.saveBtnText}>Salvar</Text>
+          <TouchableOpacity style={[s.saveBtn, { backgroundColor: colors.ctaContrastBg }]} onPress={save}>
+            <Text style={[s.saveBtnText, { color: colors.ctaContrastText }]}>Salvar</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.menu}>
+      {/* Menu */}
+      <View style={[s.menu, { backgroundColor: colors.surface }]}>
         {menuItems.map((item, i) => (
-          <TouchableOpacity key={i} style={styles.menuItem} onPress={item.onPress}>
-            <Text style={styles.menuIcon}>{item.icon}</Text>
-            <Text style={[styles.menuLabel, item.danger && styles.menuLabelDanger]}>{item.label}</Text>
-            <Text style={styles.menuArrow}>›</Text>
+          <TouchableOpacity key={i} style={[s.menuItem, { borderBottomColor: colors.border }]} onPress={item.onPress}>
+            <View style={[s.menuIconWrap, { backgroundColor: item.danger ? '#EF444420' : colors.surface3 }]}>
+              <Ionicons name={item.icon} size={18} color={item.danger ? '#EF4444' : colors.text} />
+            </View>
+            <Text style={[s.menuLabel, item.danger && s.menuLabelDanger]}>{item.label}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
           </TouchableOpacity>
         ))}
       </View>
 
+      {/* Modal logout */}
       <Modal visible={logoutModal} transparent animationType="fade">
-        <View style={styles.overlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Sair da Conta</Text>
-            <Text style={styles.modalText}>Tem certeza que deseja sair?</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalBtnNo} onPress={() => setLogoutModal(false)}>
-                <Text style={styles.modalBtnNoText}>Não</Text>
+        <View style={s.overlay}>
+          <View style={[s.modalBox, { backgroundColor: colors.surface }]}>
+            <Text style={[s.modalTitle, { color: colors.text }]}>Sair da Conta</Text>
+            <Text style={[s.modalText, { color: colors.textMuted }]}>Tem certeza que deseja sair?</Text>
+            <View style={s.modalButtons}>
+              <TouchableOpacity style={[s.modalBtnNo, { borderColor: colors.border }]} onPress={() => setLogoutModal(false)}>
+                <Text style={[s.modalBtnNoText, { color: colors.text }]}>Não</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalBtnYes} onPress={handleLogout}>
-                <Text style={styles.modalBtnYesText}>Sim</Text>
+              <TouchableOpacity style={s.modalBtnYes} onPress={handleLogout}>
+                <Text style={s.modalBtnYesText}>Sair</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 20, paddingTop: 56, gap: 16 },
-  avatarSection: { alignItems: 'center', gap: 6, marginBottom: 4 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 32, fontWeight: 'bold', color: Colors.white },
-  userName: { fontSize: 20, fontWeight: 'bold', color: Colors.text },
-  userEmail: { fontSize: 14, color: Colors.textSecondary },
-  card: { backgroundColor: Colors.card, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2, gap: 12 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  editBtn: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
-  field: { borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 10 },
-  fieldLabel: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
-  fieldValue: { fontSize: 15, color: Colors.text, fontWeight: '500' },
-  fieldInput: { fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 8 },
-  saveBtn: { backgroundColor: Colors.primary, borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4 },
-  saveBtnText: { color: Colors.white, fontSize: 15, fontWeight: 'bold' },
-  menu: { backgroundColor: Colors.card, borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 12 },
-  menuIcon: { fontSize: 20 },
-  menuLabel: { flex: 1, fontSize: 15, color: Colors.text },
-  menuLabelDanger: { color: Colors.danger },
-  menuArrow: { fontSize: 20, color: Colors.textSecondary },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  modalBox: { backgroundColor: Colors.white, borderRadius: 20, padding: 24, width: '80%', gap: 12 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text, textAlign: 'center' },
-  modalText: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center' },
-  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  modalBtnNo: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
-  modalBtnNoText: { fontSize: 15, color: Colors.text, fontWeight: '600' },
-  modalBtnYes: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: Colors.danger, alignItems: 'center' },
-  modalBtnYesText: { fontSize: 15, color: Colors.white, fontWeight: '600' },
-});
+function createStyles(colors: any, isDark: boolean) {
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.bg },
+    scroll: { padding: 20, paddingTop: 56, gap: 14 },
+    avatarSection: { alignItems: 'center', gap: 6, marginBottom: 4 },
+    avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.purpleSoft, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.purpleAccent + '40' },
+    avatarText: { fontSize: 32, fontWeight: '900', color: colors.text },
+    userName: { fontSize: 20, fontWeight: '900', color: colors.text, letterSpacing: -0.5 },
+    userEmail: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
+    goalBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 4 },
+    goalBadgeText: { fontSize: 12, fontWeight: '700' },
+    metricsRow: { flexDirection: 'row', gap: 8 },
+    metricCard: { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    metricValue: { fontSize: 16, fontWeight: '900', color: colors.text },
+    metricLabel: { fontSize: 10, color: colors.textMuted, fontWeight: '700', marginTop: 2 },
+    card: { borderRadius: 20, padding: 18, gap: 12, borderWidth: 1, borderColor: colors.border },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    cardTitle: { fontSize: 15, fontWeight: '800', color: colors.text },
+    editBtn: { fontSize: 14, fontWeight: '700' },
+    field: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 10 },
+    fieldLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '700', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+    fieldValue: { fontSize: 15, color: colors.text, fontWeight: '600' },
+    fieldInput: { fontSize: 15, borderWidth: 1, borderRadius: 10, padding: 10 },
+    saveBtn: { borderRadius: 999, padding: 14, alignItems: 'center', marginTop: 4 },
+    saveBtnText: { fontSize: 15, fontWeight: '800' },
+    menu: { borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+    menuItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, gap: 12 },
+    menuIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    menuLabel: { flex: 1, fontSize: 15, color: colors.text, fontWeight: '600' },
+    menuLabelDanger: { color: '#EF4444' },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+    modalBox: { borderRadius: 24, padding: 24, width: '80%', gap: 12, borderWidth: 1, borderColor: colors.border },
+    modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center' },
+    modalText: { fontSize: 14, textAlign: 'center' },
+    modalButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
+    modalBtnNo: { flex: 1, padding: 14, borderRadius: 999, borderWidth: 1, alignItems: 'center' },
+    modalBtnNoText: { fontSize: 15, fontWeight: '700' },
+    modalBtnYes: { flex: 1, padding: 14, borderRadius: 999, backgroundColor: '#EF4444', alignItems: 'center' },
+    modalBtnYesText: { fontSize: 15, color: '#FFFFFF', fontWeight: '700' },
+  });
+}

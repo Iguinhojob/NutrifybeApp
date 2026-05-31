@@ -1,55 +1,47 @@
-import { Colors } from '@/constants/theme';
-import { useState } from 'react';
+import { useTheme } from '@/context/theme';
 import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 
 export default function SettingsScreen() {
-  const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-  const [reminders, setReminders] = useState(true);
+  const { colors, isDark, toggleTheme } = useTheme();
+
+  const s = styles(colors);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notificações</Text>
-        <View style={styles.item}>
-          <Text style={styles.itemLabel}>Ativar notificações</Text>
-          <Switch value={notifications} onValueChange={setNotifications} trackColor={{ true: Colors.primary }} />
-        </View>
-        <View style={styles.item}>
-          <Text style={styles.itemLabel}>Lembretes de refeições</Text>
-          <Switch value={reminders} onValueChange={setReminders} trackColor={{ true: Colors.primary }} />
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Aparência</Text>
-        <View style={styles.item}>
-          <Text style={styles.itemLabel}>Modo escuro</Text>
-          <Switch value={darkMode} onValueChange={setDarkMode} trackColor={{ true: Colors.primary }} />
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Aparência</Text>
+        <View style={s.item}>
+          <Text style={s.itemLabel}>Modo escuro</Text>
+          <Switch
+            value={isDark}
+            onValueChange={toggleTheme}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor={colors.white}
+          />
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Dados</Text>
-        <TouchableOpacity style={styles.item}>
-          <Text style={styles.itemLabel}>Exportar dados</Text>
-          <Text style={styles.arrow}>›</Text>
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Dados</Text>
+        <TouchableOpacity style={s.item}>
+          <Text style={s.itemLabel}>Exportar dados</Text>
+          <Text style={s.arrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.item}>
-          <Text style={[styles.itemLabel, { color: Colors.danger }]}>Excluir conta</Text>
-          <Text style={styles.arrow}>›</Text>
+        <TouchableOpacity style={s.item}>
+          <Text style={[s.itemLabel, { color: colors.danger }]}>Excluir conta</Text>
+          <Text style={s.arrow}>›</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const styles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, gap: 16 },
-  section: { backgroundColor: Colors.white, borderRadius: 14, overflow: 'hidden' },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, padding: 16, paddingBottom: 8, textTransform: 'uppercase' },
-  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: Colors.border },
-  itemLabel: { fontSize: 15, color: Colors.text },
-  arrow: { fontSize: 20, color: Colors.textSecondary },
+  section: { backgroundColor: colors.card, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, padding: 16, paddingBottom: 8, textTransform: 'uppercase' },
+  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: colors.border },
+  itemLabel: { fontSize: 15, color: colors.text },
+  arrow: { fontSize: 20, color: colors.textSecondary },
 });

@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useState } from 'react';
 
-type User = {
+export type User = {
   name: string;
   email: string;
   weight: string;
   height: string;
   goal: string;
+  targetWeight?: string;
+  waterGoal?: string;
+  setupDone?: boolean;
 };
 
 type AuthContextType = {
@@ -24,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = (email: string, password: string) => {
     if (email && password.length >= 6) {
-      setUser({ name: 'Usuário', email, weight: '70', height: '170', goal: 'Perder peso' });
+      setUser({ name: 'Usuário', email, weight: '70', height: '170', goal: 'Perder peso', targetWeight: '65', waterGoal: '2', setupDone: true });
       return true;
     }
     return false;
@@ -32,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = (data: User & { password: string }) => {
     const { password, ...userData } = data;
-    setUser(userData);
+    setUser({ ...userData, setupDone: false });
   };
 
   const logout = () => setUser(null);

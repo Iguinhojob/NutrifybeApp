@@ -1,4 +1,4 @@
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/context/theme';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const SECTIONS = [
@@ -12,24 +12,27 @@ const SECTIONS = [
 ];
 
 export default function TermsScreen() {
+  const { colors } = useTheme();
+  const s = styles(colors);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.updated}>Última atualização: Janeiro 2025</Text>
-      {SECTIONS.map(s => (
-        <View key={s.title} style={styles.section}>
-          <Text style={styles.sectionTitle}>{s.title}</Text>
-          <Text style={styles.sectionText}>{s.text}</Text>
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <Text style={s.updated}>Última atualização: Janeiro 2025</Text>
+      {SECTIONS.map(section => (
+        <View key={section.title} style={s.section}>
+          <Text style={s.sectionTitle}>{section.title}</Text>
+          <Text style={s.sectionText}>{section.text}</Text>
         </View>
       ))}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const styles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, gap: 12 },
-  updated: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
-  section: { backgroundColor: Colors.white, borderRadius: 14, padding: 16, gap: 8 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.primary },
-  sectionText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 22 },
+  updated: { fontSize: 13, color: colors.textSecondary, marginBottom: 4 },
+  section: { backgroundColor: colors.card, borderRadius: 14, padding: 16, gap: 8, borderWidth: 1, borderColor: colors.border },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.primary },
+  sectionText: { fontSize: 14, color: colors.textSecondary, lineHeight: 22 },
 });

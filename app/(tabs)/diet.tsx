@@ -1,4 +1,4 @@
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/context/theme';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -50,42 +50,46 @@ const DIET: Record<string, { meal: string; food: string; kcal: number; protein: 
 };
 
 export default function DietScreen() {
+  const { colors } = useTheme();
   const [selectedDay, setSelectedDay] = useState('Seg');
   const meals = DIET[selectedDay];
   const totalKcal = meals.reduce((a, m) => a + m.kcal, 0);
+  const s = styles(colors);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Dieta Semanal</Text>
-      <Text style={styles.subtitle}>Seu plano alimentar personalizado</Text>
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <Text style={s.title}>Dieta Semanal</Text>
+      <Text style={s.subtitle}>Seu plano alimentar personalizado</Text>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.daysScroll}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.daysScroll}>
         {DAYS.map(d => (
-          <TouchableOpacity key={d} style={[styles.dayBtn, selectedDay === d && styles.dayBtnActive]} onPress={() => setSelectedDay(d)}>
-            <Text style={[styles.dayText, selectedDay === d && styles.dayTextActive]}>{d}</Text>
+          <TouchableOpacity key={d} style={[s.dayBtn, selectedDay === d && s.dayBtnActive]} onPress={() => setSelectedDay(d)}>
+            <Text style={[s.dayText, selectedDay === d && s.dayTextActive]}>{d}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total do dia</Text>
-        <Text style={styles.totalValue}>{totalKcal} kcal</Text>
+      <View style={s.totalCard}>
+        <Text style={s.totalLabel}>Total do dia</Text>
+        <Text style={s.totalValue}>{totalKcal} kcal</Text>
       </View>
 
       {meals.map((m, i) => (
-        <View key={i} style={styles.mealCard}>
-          <View style={styles.mealHeader}>
-            <Text style={styles.mealName}>{m.meal}</Text>
-            <Text style={styles.mealKcal}>{m.kcal} kcal</Text>
+        <View key={i} style={s.mealCard}>
+          <View style={s.mealHeader}>
+            <Text style={s.mealName}>{m.meal}</Text>
+            <Text style={s.mealKcal}>{m.kcal} kcal</Text>
           </View>
-          <Text style={styles.mealFood}>{m.food}</Text>
-          <View style={styles.macros}>
-            {[{ label: 'Prot', value: `${m.protein}g`, color: Colors.secondary },
-              { label: 'Carb', value: `${m.carbs}g`, color: Colors.yellow },
-              { label: 'Gord', value: `${m.fat}g`, color: Colors.red }].map(mac => (
-              <View key={mac.label} style={styles.macroItem}>
-                <Text style={[styles.macroValue, { color: mac.color }]}>{mac.value}</Text>
-                <Text style={styles.macroLabel}>{mac.label}</Text>
+          <Text style={s.mealFood}>{m.food}</Text>
+          <View style={s.macros}>
+            {[
+              { label: 'Prot', value: `${m.protein}g`, color: colors.secondary },
+              { label: 'Carb', value: `${m.carbs}g`, color: colors.yellow },
+              { label: 'Gord', value: `${m.fat}g`, color: colors.red },
+            ].map(mac => (
+              <View key={mac.label} style={s.macroItem}>
+                <Text style={[s.macroValue, { color: mac.color }]}>{mac.value}</Text>
+                <Text style={s.macroLabel}>{mac.label}</Text>
               </View>
             ))}
           </View>
@@ -95,26 +99,26 @@ export default function DietScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const styles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingTop: 56, gap: 12 },
-  title: { fontSize: 26, fontWeight: 'bold', color: Colors.text },
-  subtitle: { fontSize: 14, color: Colors.textSecondary },
+  title: { fontSize: 26, fontWeight: 'bold', color: colors.text },
+  subtitle: { fontSize: 14, color: colors.textSecondary },
   daysScroll: { marginVertical: 4 },
-  dayBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: Colors.white, marginRight: 8, borderWidth: 1, borderColor: Colors.border },
-  dayBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  dayText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
-  dayTextActive: { color: Colors.white },
-  totalCard: { backgroundColor: Colors.primary, borderRadius: 14, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: 15, color: Colors.primaryLight, fontWeight: '600' },
-  totalValue: { fontSize: 22, fontWeight: 'bold', color: Colors.white },
-  mealCard: { backgroundColor: Colors.card, borderRadius: 14, padding: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 1, gap: 8 },
+  dayBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: colors.card, marginRight: 8, borderWidth: 1, borderColor: colors.border },
+  dayBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  dayText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+  dayTextActive: { color: '#FFFFFF' },
+  totalCard: { backgroundColor: colors.primary, borderRadius: 14, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { fontSize: 15, color: colors.primaryLight, fontWeight: '600' },
+  totalValue: { fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' },
+  mealCard: { backgroundColor: colors.card, borderRadius: 14, padding: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 1, gap: 8, borderWidth: 1, borderColor: colors.border },
   mealHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  mealName: { fontSize: 14, fontWeight: '700', color: Colors.primary },
-  mealKcal: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  mealFood: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  mealName: { fontSize: 14, fontWeight: '700', color: colors.primary },
+  mealKcal: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  mealFood: { fontSize: 14, color: colors.text, lineHeight: 20 },
   macros: { flexDirection: 'row', gap: 16 },
   macroItem: { alignItems: 'center' },
   macroValue: { fontSize: 13, fontWeight: 'bold' },
-  macroLabel: { fontSize: 11, color: Colors.textSecondary },
+  macroLabel: { fontSize: 11, color: colors.textSecondary },
 });
