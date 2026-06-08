@@ -9,7 +9,7 @@ const SECTIONS = [
   { title: '4. Conteúdo', text: 'As informações nutricionais fornecidas são baseadas em dados gerais e podem não ser adequadas para condições médicas específicas.' },
   { title: '5. Limitação de Responsabilidade', text: 'O Nutrifybe não se responsabiliza por decisões tomadas com base nas informações do aplicativo sem orientação profissional.' },
   { title: '6. Modificações', text: 'Reservamos o direito de modificar estes termos a qualquer momento. Notificaremos os usuários sobre mudanças significativas.' },
-  { title: '7. Contato', text: 'Para dúvidas sobre os termos: termos@nutrifybe.com' },
+  { title: '7. Contato', text: 'Para dúvidas sobre os termos: contatonutrifybe@gmail.com' },
 ];
 
 export default function TermsScreen() {
