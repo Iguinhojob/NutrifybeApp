@@ -1,5 +1,4 @@
 import { useAuth } from '@/context/auth';
-import { editorialPalette } from '@/constants/theme';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -7,8 +6,6 @@ import {
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const P = editorialPalette;
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -25,113 +22,110 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Bolhas decorativas */}
-      <View style={[s.bubble, { top: 60, left: -30, width: 120, height: 120, backgroundColor: P.lilac, opacity: 0.35 }]} />
-      <View style={[s.bubble, { top: 140, right: -20, width: 80, height: 80, backgroundColor: P.pink, opacity: 0.3 }]} />
-      <View style={[s.bubble, { bottom: 120, left: 20, width: 60, height: 60, backgroundColor: P.lilac, opacity: 0.25 }]} />
+      {/* Topo com identidade */}
+      <View style={s.top}>
+        <View style={s.iconWrap}>
+          <Ionicons name="leaf" size={32} color="#fff" />
+        </View>
+        <Text style={s.brand}>Nutrifybe</Text>
+        <Text style={s.tagline}>Nutrição que transforma hábitos</Text>
+      </View>
 
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" bounces={false}>
-        {/* Hero editorial */}
-        <View style={s.hero}>
-          <Text style={s.brand}>NUTRIFYBE.</Text>
-          <Text style={s.heroTitle}>{'Bem-vindo\nde volta.'}</Text>
-          <Text style={s.heroSub}>Seu progresso continua aqui.</Text>
+      {/* Card de login */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>Entrar na conta</Text>
+
+        <View style={s.field}>
+          <Ionicons name="mail-outline" size={18} color="#7C5CBF" />
+          <TextInput
+            style={s.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            placeholderTextColor="#aaa"
+          />
         </View>
 
-        {/* Card */}
-        <View style={s.card}>
-          <View style={s.field}>
-            <Ionicons name="mail-outline" size={18} color={P.text} style={s.fieldIcon} />
-            <TextInput
-              style={s.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor="#9c97a2"
-            />
-          </View>
-          <View style={s.field}>
-            <Ionicons name="lock-closed-outline" size={18} color={P.text} style={s.fieldIcon} />
-            <TextInput
-              style={[s.input, { flex: 1 }]}
-              placeholder="Senha"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPass}
-              placeholderTextColor="#9c97a2"
-            />
-            <TouchableOpacity onPress={() => setShowPass(v => !v)}>
-              <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9c97a2" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Pill CTA duplo */}
-          <TouchableOpacity style={s.ctaOuter} onPress={handleLogin} activeOpacity={0.85}>
-            <View style={s.ctaInner}>
-              <Text style={s.ctaText}>Entrar</Text>
-              <Ionicons name="chevron-forward" size={16} color={P.text} />
-              <Ionicons name="chevron-forward" size={16} color={P.text} style={{ marginLeft: -8 }} />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => router.push('/auth/about-you')} style={s.linkRow}>
-            <Text style={s.link}>Não tem conta? <Text style={s.linkBold}>Cadastre-se</Text></Text>
+        <View style={s.field}>
+          <Ionicons name="lock-closed-outline" size={18} color="#7C5CBF" />
+          <TextInput
+            style={[s.input, { flex: 1 }]}
+            placeholder="Senha"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPass}
+            placeholderTextColor="#aaa"
+          />
+          <TouchableOpacity onPress={() => setShowPass(v => !v)}>
+            <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color="#aaa" />
           </TouchableOpacity>
         </View>
-      </ScrollView>
+
+        <TouchableOpacity style={s.btn} onPress={handleLogin} activeOpacity={0.85}>
+          <Text style={s.btnText}>Entrar</Text>
+          <Ionicons name="arrow-forward" size={18} color="#fff" />
+        </TouchableOpacity>
+
+        <View style={s.divider}>
+          <View style={s.line} />
+          <Text style={s.dividerText}>ou</Text>
+          <View style={s.line} />
+        </View>
+
+        <TouchableOpacity style={s.btnOutline} onPress={() => router.push('/auth/about-you')} activeOpacity={0.85}>
+          <Text style={s.btnOutlineText}>Criar conta gratuita</Text>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: editorialPalette.mint },
-  scroll: { flexGrow: 1, padding: 24, paddingTop: 68 },
-  bubble: { position: 'absolute', borderRadius: 999 },
-  hero: { marginBottom: 32 },
-  brand: { fontSize: 13, fontWeight: '800', letterSpacing: 2, color: P.text, opacity: 0.5, marginBottom: 12 },
-  heroTitle: { fontSize: 48, fontWeight: '900', color: P.text, letterSpacing: -2, lineHeight: 52 },
-  heroSub: { fontSize: 16, color: P.text, opacity: 0.6, marginTop: 8, fontWeight: '500' },
+  screen: { flex: 1, backgroundColor: '#1A1035' },
+
+  top: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 16 },
+  iconWrap: {
+    width: 68, height: 68, borderRadius: 20,
+    backgroundColor: '#7C5CBF',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
+  },
+  brand: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: -1 },
+  tagline: { fontSize: 14, color: 'rgba(255,255,255,0.5)', fontWeight: '500' },
+
   card: {
-    backgroundColor: 'rgba(255,255,255,0.82)',
-    borderRadius: 28,
-    padding: 24,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 32, borderTopRightRadius: 32,
+    padding: 28, paddingBottom: 48,
     gap: 14,
-    borderWidth: 1,
-    borderColor: P.border,
   },
+  cardTitle: { fontSize: 20, fontWeight: '800', color: '#1A1035', marginBottom: 4 },
+
   field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fcfbfd',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: P.border,
-    gap: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#F4F1F9',
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14,
   },
-  fieldIcon: { opacity: 0.6 },
-  input: { flex: 1, fontSize: 15, color: P.text, fontWeight: '500' },
-  ctaOuter: {
-    backgroundColor: P.text,
-    borderRadius: 999,
-    padding: 4,
+  input: { flex: 1, fontSize: 15, color: '#1A1035', fontWeight: '500' },
+
+  btn: {
+    backgroundColor: '#7C5CBF', borderRadius: 14,
+    paddingVertical: 16, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 4,
   },
-  ctaInner: {
-    backgroundColor: editorialPalette.mint,
-    borderRadius: 999,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
+  btnText: { fontSize: 16, fontWeight: '800', color: '#fff' },
+
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  line: { flex: 1, height: 1, backgroundColor: '#E5E0F0' },
+  dividerText: { fontSize: 13, color: '#aaa', fontWeight: '600' },
+
+  btnOutline: {
+    borderRadius: 14, paddingVertical: 15,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#7C5CBF',
   },
-  ctaText: { fontSize: 16, fontWeight: '800', color: P.text },
-  linkRow: { alignItems: 'center' },
-  link: { fontSize: 14, color: P.text, opacity: 0.6 },
-  linkBold: { fontWeight: '800', opacity: 1, color: P.text },
+  btnOutlineText: { fontSize: 15, fontWeight: '800', color: '#7C5CBF' },
 });
