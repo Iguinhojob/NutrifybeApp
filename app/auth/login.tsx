@@ -22,110 +22,117 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Topo com identidade */}
-      <View style={s.top}>
-        <View style={s.iconWrap}>
-          <Ionicons name="leaf" size={32} color="#fff" />
-        </View>
-        <Text style={s.brand}>Nutrifybe</Text>
-        <Text style={s.tagline}>Nutrição que transforma hábitos</Text>
-      </View>
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" bounces={false}>
 
-      {/* Card de login */}
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Entrar na conta</Text>
-
-        <View style={s.field}>
-          <Ionicons name="mail-outline" size={18} color="#7C5CBF" />
-          <TextInput
-            style={s.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor="#aaa"
-          />
+        {/* Ilustração / hero */}
+        <View style={s.hero}>
+          <View style={s.logoCircle}>
+            <Text style={s.logoEmoji}>🥗</Text>
+          </View>
+          <Text style={s.appName}>Nutrifybe</Text>
+          <Text style={s.tagline}>Seu guia de nutrição diária</Text>
         </View>
 
-        <View style={s.field}>
-          <Ionicons name="lock-closed-outline" size={18} color="#7C5CBF" />
-          <TextInput
-            style={[s.input, { flex: 1 }]}
-            placeholder="Senha"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPass}
-            placeholderTextColor="#aaa"
-          />
-          <TouchableOpacity onPress={() => setShowPass(v => !v)}>
-            <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color="#aaa" />
+        {/* Formulário */}
+        <View style={s.form}>
+          <Text style={s.formTitle}>Entrar</Text>
+
+          <View style={s.field}>
+            <Ionicons name="mail-outline" size={20} color="#52B788" />
+            <TextInput
+              style={s.input}
+              placeholder="Seu email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor="#B0B8B4"
+            />
+          </View>
+
+          <View style={s.field}>
+            <Ionicons name="lock-closed-outline" size={20} color="#52B788" />
+            <TextInput
+              style={[s.input, { flex: 1 }]}
+              placeholder="Sua senha"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPass}
+              placeholderTextColor="#B0B8B4"
+            />
+            <TouchableOpacity onPress={() => setShowPass(v => !v)}>
+              <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color="#B0B8B4" />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={s.btn} onPress={handleLogin} activeOpacity={0.85}>
+            <Text style={s.btnText}>Entrar</Text>
+          </TouchableOpacity>
+
+          <View style={s.dividerRow}>
+            <View style={s.dividerLine} />
+            <Text style={s.dividerText}>ou</Text>
+            <View style={s.dividerLine} />
+          </View>
+
+          <TouchableOpacity style={s.btnSecondary} onPress={() => router.push('/auth/about-you')} activeOpacity={0.85}>
+            <Text style={s.btnSecondaryText}>Criar conta gratuita</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={s.btn} onPress={handleLogin} activeOpacity={0.85}>
-          <Text style={s.btnText}>Entrar</Text>
-          <Ionicons name="arrow-forward" size={18} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={s.divider}>
-          <View style={s.line} />
-          <Text style={s.dividerText}>ou</Text>
-          <View style={s.line} />
-        </View>
-
-        <TouchableOpacity style={s.btnOutline} onPress={() => router.push('/auth/about-you')} activeOpacity={0.85}>
-          <Text style={s.btnOutlineText}>Criar conta gratuita</Text>
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#1A1035' },
+  screen: { flex: 1, backgroundColor: '#F6FBF7' },
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: 28 },
 
-  top: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 16 },
-  iconWrap: {
-    width: 68, height: 68, borderRadius: 20,
-    backgroundColor: '#7C5CBF',
+  hero: { alignItems: 'center', marginBottom: 40, gap: 10 },
+  logoCircle: {
+    width: 90, height: 90, borderRadius: 28,
+    backgroundColor: '#D8F3DC',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  brand: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: -1 },
-  tagline: { fontSize: 14, color: 'rgba(255,255,255,0.5)', fontWeight: '500' },
+  logoEmoji: { fontSize: 44 },
+  appName: { fontSize: 30, fontWeight: '900', color: '#1B4332', letterSpacing: -0.5 },
+  tagline: { fontSize: 15, color: '#74A88A', fontWeight: '500' },
 
-  card: {
+  form: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 32, borderTopRightRadius: 32,
-    padding: 28, paddingBottom: 48,
+    borderRadius: 24,
+    padding: 24,
     gap: 14,
+    boxShadow: '0px 4px 16px rgba(0,0,0,0.06)',
+    elevation: 4,
   },
-  cardTitle: { fontSize: 20, fontWeight: '800', color: '#1A1035', marginBottom: 4 },
+  formTitle: { fontSize: 22, fontWeight: '800', color: '#1B4332', marginBottom: 4 },
 
   field: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#F4F1F9',
+    backgroundColor: '#F6FBF7',
     borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14,
+    borderWidth: 1, borderColor: '#D8F3DC',
   },
-  input: { flex: 1, fontSize: 15, color: '#1A1035', fontWeight: '500' },
+  input: { flex: 1, fontSize: 15, color: '#1B4332', fontWeight: '500' },
 
   btn: {
-    backgroundColor: '#7C5CBF', borderRadius: 14,
-    paddingVertical: 16, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginTop: 4,
+    backgroundColor: '#52B788',
+    borderRadius: 14, paddingVertical: 16,
+    alignItems: 'center', marginTop: 4,
   },
   btnText: { fontSize: 16, fontWeight: '800', color: '#fff' },
 
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  line: { flex: 1, height: 1, backgroundColor: '#E5E0F0' },
-  dividerText: { fontSize: 13, color: '#aaa', fontWeight: '600' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E8F5E9' },
+  dividerText: { fontSize: 13, color: '#B0B8B4', fontWeight: '600' },
 
-  btnOutline: {
+  btnSecondary: {
     borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#7C5CBF',
+    alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#52B788',
   },
-  btnOutlineText: { fontSize: 15, fontWeight: '800', color: '#7C5CBF' },
+  btnSecondaryText: { fontSize: 15, fontWeight: '800', color: '#52B788' },
 });

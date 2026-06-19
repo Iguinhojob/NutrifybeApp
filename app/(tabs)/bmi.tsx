@@ -61,7 +61,7 @@ const bar = StyleSheet.create({
   track:        { flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'visible', position: 'relative' },
   segment:      { height: '100%' },
   indicator:    { position: 'absolute', top: -4, alignItems: 'center' },
-  indicatorDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  indicatorDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 3, borderColor: '#fff', boxShadow: '0px 2px 4px rgba(0,0,0,0.2)', elevation: 4 },
   scaleRow:     { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   scaleLabel:   { fontSize: 10, color: '#9c97a2', fontWeight: '600' },
 });

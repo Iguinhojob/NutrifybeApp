@@ -1,192 +1,102 @@
 import { useAuth } from '@/context/auth';
-import { useFonts } from 'expo-font';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
-const MASCOTE = require('@/assets/images/mascote.png');
-const DURATION = 3500;
+const DURATION = 2800;
 
 export default function SplashScreen() {
   const { isAuthenticated } = useAuth();
-  const [fontsLoaded] = useFonts({
-    Rowdies_400Regular: require('../node_modules/@expo-google-fonts/rowdies/400Regular/Rowdies_400Regular.ttf'),
-  });
-
-  const fadeIn    = useRef(new Animated.Value(0)).current;
-  const fadeOut   = useRef(new Animated.Value(1)).current;
-  const float     = useRef(new Animated.Value(0)).current;
-  const breathe   = useRef(new Animated.Value(1)).current;
-  const glow      = useRef(new Animated.Value(0.3)).current;
-  const pulse1    = useRef(new Animated.Value(1)).current;
-  const pulse2    = useRef(new Animated.Value(1)).current;
-  const pulse3    = useRef(new Animated.Value(1)).current;
-
-  const [eyeOpen, setEyeOpen] = useState(true);
+  const fadeIn  = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(20)).current;
+  const fadeOut = useRef(new Animated.Value(1)).current;
+  const barWidth = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Fade in
-    Animated.timing(fadeIn, { toValue: 1, duration: 700, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.timing(fadeIn,  { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(slideUp, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
 
-    // Flutuação
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(float, { toValue: -14, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(float, { toValue: 0,   duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    ).start();
+    Animated.timing(barWidth, {
+      toValue: 1, duration: DURATION - 400,
+      delay: 300, easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    }).start();
 
-    // Respiração
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(breathe, { toValue: 1.06, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 1,    duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
-
-    // Brilho ao redor
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glow, { toValue: 0.8, duration: 1200, useNativeDriver: true }),
-        Animated.timing(glow, { toValue: 0.3, duration: 1200, useNativeDriver: true }),
-      ])
-    ).start();
-
-    // Círculos pulsantes em cascata (staggered)
-    const pulseAnim = (val: Animated.Value, delay: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(val, { toValue: 2.2, duration: 1400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          Animated.timing(val, { toValue: 1,   duration: 0,    useNativeDriver: true }),
-        ])
-      );
-
-    pulseAnim(pulse1, 0).start();
-    pulseAnim(pulse2, 500).start();
-    pulseAnim(pulse3, 1000).start();
-
-    // Piscar de olhos
-    const blink = () => {
-      setEyeOpen(false);
-      setTimeout(() => setEyeOpen(true), 150);
-    };
-    const blinkInterval = setInterval(blink, 2800);
-
-    // Fade out e redirect
-    const redirectTimer = setTimeout(() => {
-      Animated.timing(fadeOut, { toValue: 0, duration: 600, useNativeDriver: true }).start(() => {
+    const t = setTimeout(() => {
+      Animated.timing(fadeOut, { toValue: 0, duration: 500, useNativeDriver: true }).start(() => {
         router.replace(isAuthenticated ? '/(tabs)' : '/auth/login');
       });
     }, DURATION);
 
-    return () => {
-      clearTimeout(redirectTimer);
-      clearInterval(blinkInterval);
-    };
+    return () => clearTimeout(t);
   }, [isAuthenticated]);
 
-  const pulseOpacity = (val: Animated.Value) => val.interpolate({ inputRange: [1, 2.2], outputRange: [0.5, 0] });
+  const barW = barWidth.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
   return (
-    <Animated.View style={[styles.container, { opacity: Animated.multiply(fadeIn, fadeOut) }]}>
+    <Animated.View style={[s.screen, { opacity: Animated.multiply(fadeIn, fadeOut) }]}>
+      <Animated.View style={{ transform: [{ translateY: slideUp }], alignItems: 'center', gap: 6 }}>
+        {/* Ícone da marca */}
+        <View style={s.iconBox}>
+          <View style={s.iconLeaf} />
+          <View style={[s.iconLeaf, s.iconLeaf2]} />
+        </View>
 
-      {/* Brilho ao redor do mascote */}
-      <Animated.View style={[styles.glowRing, { opacity: glow, transform: [{ scale: breathe }] }]} />
-
-      {/* Mascote */}
-      <Animated.View style={{ transform: [{ translateY: float }, { scale: breathe }], alignItems: 'center' }}>
-        <Image
-          source={MASCOTE}
-          style={[styles.mascote, !eyeOpen && styles.mascoteBlinking]}
-          resizeMode="contain"
-        />
+        <Text style={s.name}>nutrifybe</Text>
+        <Text style={s.tagline}>nutrição que faz sentido</Text>
       </Animated.View>
 
-
-
-      {/* Título com cores diferentes por parte */}
-      <View style={styles.titleRow}>
-        <Text style={[styles.title, { color: '#00C2CB' }]}>Nutri</Text>
-        <Text style={[styles.title, { color: '#937BD6' }]}>fybe</Text>
+      {/* Barra de loading */}
+      <View style={s.barTrack}>
+        <Animated.View style={[s.barFill, { width: barW }]} />
       </View>
-
-      {/* Círculos pulsantes de loading */}
-      <View style={styles.pulseContainer}>
-        {[pulse1, pulse2, pulse3].map((p, i) => (
-          <Animated.View key={i} style={[styles.pulseCircle, {
-            transform: [{ scale: p }],
-            opacity: pulseOpacity(p),
-          }]} />
-        ))}
-        <View style={styles.pulseDot} />
-      </View>
-
     </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E8FBFF',
-    gap: 8,
+const GREEN = '#1B4332';
+const GREEN_MID = '#2D6A4F';
+const ACCENT = '#52B788';
+const BG = '#F6FBF7';
+
+const s = StyleSheet.create({
+  screen: {
+    flex: 1, backgroundColor: BG,
+    alignItems: 'center', justifyContent: 'center', gap: 40,
   },
-  pulseContainer: {
-    marginTop: 20,
-    width: 50,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+  iconBox: {
+    width: 72, height: 72, borderRadius: 22,
+    backgroundColor: GREEN,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
   },
-  pulseCircle: {
+  iconLeaf: {
     position: 'absolute',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: '#00C2CB',
-    backgroundColor: 'transparent',
+    width: 28, height: 36,
+    borderRadius: 14,
+    backgroundColor: ACCENT,
+    transform: [{ rotate: '-30deg' }, { translateX: -6 }],
   },
-  pulseDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#00C2CB',
+  iconLeaf2: {
+    backgroundColor: '#74C69D',
+    transform: [{ rotate: '30deg' }, { translateX: 6 }],
   },
-  glowRing: {
-    position: 'absolute',
-    width: 210, height: 210,
-    borderRadius: 105,
-    backgroundColor: '#B2F0F5',
-    shadowColor: '#00C2CB',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 28,
-    elevation: 8,
+  name: {
+    fontSize: 36, fontWeight: '900', color: GREEN,
+    letterSpacing: -1.5,
   },
-  mascote: {
-    width: 190, height: 190,
+  tagline: {
+    fontSize: 14, color: ACCENT, fontWeight: '600', letterSpacing: 0.5,
   },
-  mascoteBlinking: {
-    transform: [{ scaleY: 0.95 }],
+  barTrack: {
+    position: 'absolute', bottom: 60,
+    width: 120, height: 3, borderRadius: 2,
+    backgroundColor: '#D8F3DC',
+    overflow: 'hidden',
   },
-  shadow: {
-    width: 90, height: 14,
-    borderRadius: 50,
-    backgroundColor: '#00C2CB',
-    marginTop: -6,
-    marginBottom: 10,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    marginTop: 8,
-  },
-  title: {
-    fontSize: 38,
-    fontFamily: 'Rowdies_400Regular',
-    letterSpacing: 1,
+  barFill: {
+    height: 3, borderRadius: 2, backgroundColor: ACCENT,
   },
 });

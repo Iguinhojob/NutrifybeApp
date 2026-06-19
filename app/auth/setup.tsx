@@ -8,10 +8,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 const GOALS = [
-  { label: 'Perder peso',    icon: 'trending-down-outline' as const },
-  { label: 'Ganhar massa',   icon: 'trending-up-outline'   as const },
-  { label: 'Manter peso',    icon: 'remove-outline'        as const },
-  { label: 'Melhorar saúde', icon: 'heart-outline'         as const },
+  { label: 'Perder peso',    icon: '🔥', desc: 'Déficit calórico saudável' },
+  { label: 'Ganhar massa',   icon: '💪', desc: 'Superávit com foco em proteína' },
+  { label: 'Manter peso',    icon: '⚖️', desc: 'Equilíbrio nutricional' },
+  { label: 'Melhorar saúde', icon: '🥗', desc: 'Alimentação equilibrada' },
 ];
 
 function calcBMI(w: string, h: string) {
@@ -35,140 +35,151 @@ export default function SetupScreen() {
   const finish = () => {
     if (!weight || !height || !targetWeight)
       return Alert.alert('Erro', 'Preencha peso, altura e peso meta.');
-    register({
-      name: params.name,
-      email: params.email,
-      password: params.password,
-      weight,
-      height,
-      targetWeight,
-      waterGoal: water,
-      goal,
-    });
+    register({ name: params.name, email: params.email, password: params.password, weight, height, targetWeight, waterGoal: water, goal });
     router.replace('/auth/success');
   };
 
   return (
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={s.top}>
-        <TouchableOpacity style={s.back} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
-        </TouchableOpacity>
-        <View style={s.steps}>
-          <View style={s.step} />
-          <View style={[s.step, s.stepActive]} />
-        </View>
-        <Text style={s.stepLabel}>Passo 2 de 2</Text>
-        <Text style={s.heroTitle}>{'Seu perfil\nnutricional.'}</Text>
-        <Text style={s.heroSub}>Vamos personalizar seu plano.</Text>
-      </View>
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" bounces={false}>
 
-      <ScrollView style={s.card} contentContainerStyle={{ gap: 14, paddingBottom: 48 }} keyboardShouldPersistTaps="handled" bounces={false}>
+        {/* Header */}
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back-outline" size={22} color="#1B4332" />
+        </TouchableOpacity>
+
+        {/* Progresso */}
+        <View style={s.progressRow}>
+          <View style={[s.progressBar, s.progressDone]} />
+          <View style={[s.progressBar, s.progressActive]} />
+        </View>
+        <Text style={s.progressLabel}>Passo 2 de 2 · Quase lá!</Text>
+
+        {/* Título */}
+        <View style={s.titleArea}>
+          <Text style={s.emoji}>🎯</Text>
+          <Text style={s.title}>Seu perfil{'\n'}nutricional.</Text>
+          <Text style={s.subtitle}>Essas infos definem seu plano personalizado.</Text>
+        </View>
 
         {/* Objetivo */}
-        <Text style={s.sectionLabel}>OBJETIVO</Text>
-        <View style={s.goalGrid}>
+        <Text style={s.sectionLabel}>Qual é seu objetivo?</Text>
+        <View style={s.goalList}>
           {GOALS.map(g => (
             <TouchableOpacity
               key={g.label}
-              style={[s.goalChip, goal === g.label && s.goalChipActive]}
+              style={[s.goalCard, goal === g.label && s.goalCardActive]}
               onPress={() => setGoal(g.label)}
+              activeOpacity={0.8}
             >
-              <Ionicons name={g.icon} size={18} color={goal === g.label ? '#fff' : '#7C5CBF'} />
-              <Text style={[s.goalChipText, goal === g.label && s.goalChipTextActive]}>{g.label}</Text>
+              <Text style={s.goalEmoji}>{g.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.goalLabel, goal === g.label && s.goalLabelActive]}>{g.label}</Text>
+                <Text style={[s.goalDesc, goal === g.label && s.goalDescActive]}>{g.desc}</Text>
+              </View>
+              {goal === g.label && (
+                <Ionicons name="checkmark-circle" size={22} color="#52B788" />
+              )}
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Medidas */}
-        <Text style={s.sectionLabel}>MEDIDAS</Text>
-        <View style={s.row}>
-          <View style={[s.field, { flex: 1 }]}>
-            <Ionicons name="barbell-outline" size={16} color="#7C5CBF" />
-            <TextInput style={s.input} placeholder="Peso (kg)" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholderTextColor="#aaa" />
+        <Text style={[s.sectionLabel, { marginTop: 8 }]}>Suas medidas</Text>
+        <View style={s.form}>
+          <View style={s.row}>
+            <View style={[s.field, { flex: 1 }]}>
+              <Text style={s.fieldEmoji}>⚖️</Text>
+              <TextInput style={s.input} placeholder="Peso (kg)" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholderTextColor="#B0B8B4" />
+            </View>
+            <View style={[s.field, { flex: 1 }]}>
+              <Text style={s.fieldEmoji}>📏</Text>
+              <TextInput style={s.input} placeholder="Altura (cm)" value={height} onChangeText={setHeight} keyboardType="numeric" placeholderTextColor="#B0B8B4" />
+            </View>
           </View>
-          <View style={[s.field, { flex: 1 }]}>
-            <Ionicons name="resize-outline" size={16} color="#7C5CBF" />
-            <TextInput style={s.input} placeholder="Altura (cm)" value={height} onChangeText={setHeight} keyboardType="numeric" placeholderTextColor="#aaa" />
-          </View>
-        </View>
 
-        <View style={s.row}>
-          <View style={[s.field, { flex: 1 }]}>
-            <Ionicons name="flag-outline" size={16} color="#7C5CBF" />
-            <TextInput style={s.input} placeholder="Peso meta (kg)" value={targetWeight} onChangeText={setTargetWeight} keyboardType="numeric" placeholderTextColor="#aaa" />
+          <View style={s.row}>
+            <View style={[s.field, { flex: 1 }]}>
+              <Text style={s.fieldEmoji}>🎯</Text>
+              <TextInput style={s.input} placeholder="Peso meta (kg)" value={targetWeight} onChangeText={setTargetWeight} keyboardType="numeric" placeholderTextColor="#B0B8B4" />
+            </View>
+            <View style={[s.field, { flex: 1 }]}>
+              <Text style={s.fieldEmoji}>💧</Text>
+              <TextInput style={s.input} placeholder="Água (L/dia)" value={water} onChangeText={setWater} keyboardType="numeric" placeholderTextColor="#B0B8B4" />
+            </View>
           </View>
-          <View style={[s.field, { flex: 1 }]}>
-            <Ionicons name="water-outline" size={16} color="#7C5CBF" />
-            <TextInput style={s.input} placeholder="Água (L/dia)" value={water} onChangeText={setWater} keyboardType="numeric" placeholderTextColor="#aaa" />
-          </View>
-        </View>
 
-        {/* IMC calculado */}
-        {bmi && (
-          <View style={s.bmiCard}>
-            <Text style={s.bmiLabel}>IMC calculado</Text>
-            <Text style={s.bmiValue}>{bmi}</Text>
-          </View>
-        )}
+          {bmi && (
+            <View style={s.bmiCard}>
+              <Text style={s.bmiText}>Seu IMC estimado</Text>
+              <Text style={s.bmiValue}>{bmi}</Text>
+            </View>
+          )}
+        </View>
 
         <TouchableOpacity style={s.btn} onPress={finish} activeOpacity={0.85}>
-          <Text style={s.btnText}>Criar conta</Text>
-          <Ionicons name="checkmark" size={18} color="#1A1035" />
+          <Text style={s.btnText}>Criar minha conta 🎉</Text>
         </TouchableOpacity>
+
+        <View style={{ height: 32 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#1A1035' },
-  top: { paddingHorizontal: 28, paddingTop: 56, paddingBottom: 24, gap: 8 },
-  back: { marginBottom: 12 },
-  steps: { flexDirection: 'row', gap: 6, marginBottom: 4 },
-  step: { width: 24, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)' },
-  stepActive: { backgroundColor: '#D4F53C', width: 40 },
-  stepLabel: { fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: '700', letterSpacing: 1 },
-  heroTitle: { fontSize: 36, fontWeight: '900', color: '#fff', letterSpacing: -1.5, lineHeight: 40 },
-  heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.5)', fontWeight: '500' },
+  screen: { flex: 1, backgroundColor: '#F6FBF7' },
+  scroll: { flexGrow: 1, padding: 24, paddingTop: 56 },
 
-  card: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 32, borderTopRightRadius: 32,
-    paddingHorizontal: 28, paddingTop: 28,
+  backBtn: { marginBottom: 20 },
+
+  progressRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
+  progressBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#D8F3DC' },
+  progressActive: { backgroundColor: '#52B788' },
+  progressDone: { backgroundColor: '#52B788' },
+  progressLabel: { fontSize: 12, color: '#74A88A', fontWeight: '700', marginBottom: 28 },
+
+  titleArea: { gap: 8, marginBottom: 24 },
+  emoji: { fontSize: 36 },
+  title: { fontSize: 34, fontWeight: '900', color: '#1B4332', letterSpacing: -1, lineHeight: 40 },
+  subtitle: { fontSize: 15, color: '#74A88A', fontWeight: '500' },
+
+  sectionLabel: { fontSize: 14, fontWeight: '800', color: '#1B4332', marginBottom: 12 },
+
+  goalList: { gap: 10, marginBottom: 24 },
+  goalCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#fff', borderRadius: 16,
+    padding: 14, borderWidth: 1.5, borderColor: '#E8F5E9',
   },
-  sectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5, color: '#1A1035', opacity: 0.35 },
+  goalCardActive: { borderColor: '#52B788', backgroundColor: '#F0FDF4' },
+  goalEmoji: { fontSize: 24 },
+  goalLabel: { fontSize: 15, fontWeight: '700', color: '#1B4332' },
+  goalLabelActive: { color: '#1B4332' },
+  goalDesc: { fontSize: 12, color: '#B0B8B4', fontWeight: '500', marginTop: 2 },
+  goalDescActive: { color: '#52B788' },
 
-  goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  goalChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E0F0',
-    backgroundColor: '#F4F1F9',
-  },
-  goalChipActive: { backgroundColor: '#7C5CBF', borderColor: '#7C5CBF' },
-  goalChipText: { fontSize: 13, fontWeight: '700', color: '#7C5CBF' },
-  goalChipTextActive: { color: '#fff' },
-
+  form: { gap: 10, marginBottom: 20 },
   row: { flexDirection: 'row', gap: 10 },
   field: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F4F1F9', borderRadius: 14,
+    backgroundColor: '#fff', borderRadius: 14,
     paddingHorizontal: 12, paddingVertical: 14,
+    borderWidth: 1, borderColor: '#D8F3DC',
   },
-  input: { flex: 1, fontSize: 14, color: '#1A1035', fontWeight: '500' },
+  fieldEmoji: { fontSize: 16 },
+  input: { flex: 1, fontSize: 14, color: '#1B4332', fontWeight: '500' },
 
   bmiCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#EDE8F8', borderRadius: 14, padding: 16,
+    backgroundColor: '#D8F3DC', borderRadius: 14, padding: 16,
   },
-  bmiLabel: { fontSize: 13, fontWeight: '700', color: '#7C5CBF' },
-  bmiValue: { fontSize: 24, fontWeight: '900', color: '#1A1035' },
+  bmiText: { fontSize: 14, fontWeight: '700', color: '#1B4332' },
+  bmiValue: { fontSize: 24, fontWeight: '900', color: '#1B4332' },
 
   btn: {
-    backgroundColor: '#D4F53C', borderRadius: 14,
-    paddingVertical: 16, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#52B788', borderRadius: 14,
+    paddingVertical: 16, alignItems: 'center',
   },
-  btnText: { fontSize: 16, fontWeight: '800', color: '#1A1035' },
+  btnText: { fontSize: 16, fontWeight: '800', color: '#fff' },
 });
