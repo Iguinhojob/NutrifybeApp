@@ -1,10 +1,9 @@
 import { usePremiumTheme } from '@/context/theme';
+import { useAppLayout } from '@/hooks/useAppLayout';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { GRAD } from '@/constants/darkTheme';
 
 const DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const PLAN: Record<string, { name: string; time: string; foods: string[]; kcal: number; origin: 'IA' | 'Nutricionista' | 'Pendente'; done: boolean }[]> = {
@@ -16,10 +15,15 @@ const PLAN: Record<string, { name: string; time: string; foods: string[]; kcal: 
   Sáb: [{ name: 'Café da manhã', time: '08:00', foods: ['Açaí', 'Granola', 'Frutas'], kcal: 420, origin: 'Pendente', done: false }, { name: 'Almoço', time: '13:00', foods: ['Churrasco magro', 'Salada verde'], kcal: 650, origin: 'Pendente', done: false }, { name: 'Lanche', time: '16:30', foods: ['Barra de proteína'], kcal: 200, origin: 'IA', done: false }, { name: 'Jantar', time: '20:00', foods: ['Sopa de lentilha', 'Pão integral'], kcal: 480, origin: 'Pendente', done: false }],
   Dom: [{ name: 'Café da manhã', time: '08:30', foods: ['Pão integral', 'Ovos', 'Abacate'], kcal: 400, origin: 'IA', done: false }, { name: 'Almoço', time: '13:00', foods: ['Frango assado', 'Arroz', 'Feijão'], kcal: 700, origin: 'Nutricionista', done: false }, { name: 'Lanche', time: '16:00', foods: ['Iogurte', 'Chia', 'Mel'], kcal: 190, origin: 'IA', done: false }, { name: 'Jantar', time: '19:30', foods: ['Salada completa', 'Atum', 'Ovos'], kcal: 420, origin: 'IA', done: false }],
 };
-const ORIGIN_COLORS: Record<string, string> = { IA: '#A78BDA', Nutricionista: '#34D399', Pendente: '#FBBF24' };
+const ORIGIN: Record<string, { color: string; bg: string }> = {
+  IA:            { color: '#3B82F6', bg: '#EFF6FF' },
+  Nutricionista: { color: '#22C55E', bg: '#F0FDF4' },
+  Pendente:      { color: '#F97316', bg: '#FFF7ED' },
+};
 
 export default function PlanScreen() {
-  const { colors } = usePremiumTheme();
+  const { colors: C } = usePremiumTheme();
+  const { topPad } = useAppLayout();
   const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
   const [selectedDay, setSelectedDay] = useState(todayIdx);
   const [expanded, setExpanded]       = useState<number | null>(0);
@@ -27,87 +31,117 @@ export default function PlanScreen() {
   const dayKey    = DAYS[selectedDay];
   const meals     = planState[dayKey];
   const totalKcal = meals.reduce((a, m) => a + m.kcal, 0);
+  const doneMeals = meals.filter(m => m.done).length;
 
   const toggleDone = (idx: number) => setPlanState(prev => ({ ...prev, [dayKey]: prev[dayKey].map((m, i) => i === idx ? { ...m, done: !m.done } : m) }));
 
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={[s.title, { color: colors.text }]}>Plano Alimentar</Text>
+  const card = { backgroundColor: C.surface, borderRadius: 18, marginBottom: 10, overflow: 'hidden' as const,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 };
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.daysScroll}>
+  return (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false}>
+        <Text style={[s.title, { color: C.text }]}>Plano Alimentar</Text>
+
+        {/* Seletor de dias */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
           {DAYS.map((d, i) => (
-            <TouchableOpacity key={d} style={[s.dayBtn, { backgroundColor: colors.surface, borderColor: colors.border }, selectedDay === i && s.dayBtnActive]} onPress={() => { setSelectedDay(i); setExpanded(null); }}>
-              <Text style={[s.dayText, { color: colors.textMuted }, selectedDay === i && { color: '#fff' }]}>{d}</Text>
+            <TouchableOpacity key={d} style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, marginRight: 8,
+              backgroundColor: selectedDay === i ? C.primary : C.surface,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 }}
+              onPress={() => { setSelectedDay(i); setExpanded(null); }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: selectedDay === i ? '#fff' : C.textMuted }}>{d}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        {/* Macros */}
-        <View style={[s.macrosCard, { backgroundColor: colors.surface, borderColor: colors.cyan + '40' }]}>
-          <Text style={[s.macrosTitle, { color: colors.textMuted }]}>Macros estimados</Text>
-          <View style={s.macrosRow}>
-            {[
-              { label: 'Proteína',    value: `${Math.round(totalKcal * 0.3 / 4)}g`,  color: colors.purpleLight },
-              { label: 'Carboidrato', value: `${Math.round(totalKcal * 0.45 / 4)}g`, color: colors.warning },
-              { label: 'Gordura',     value: `${Math.round(totalKcal * 0.25 / 9)}g`, color: colors.danger },
-              { label: 'kcal total',  value: String(totalKcal),                       color: colors.cyan },
-            ].map(m => (
-              <View key={m.label} style={s.macroItem}>
-                <Text style={[s.macroValue, { color: m.color }]}>{m.value}</Text>
-                <Text style={[s.macroLabel, { color: colors.textMuted }]}>{m.label}</Text>
-              </View>
-            ))}
+        {/* Resumo do dia */}
+        <View style={{ backgroundColor: C.surface, borderRadius: 20, padding: 18, marginBottom: 16, flexDirection: 'row', alignItems: 'center',
+          shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, color: C.textMuted, marginBottom: 4 }}>Total do dia</Text>
+            <Text style={{ fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -1 }}>{totalKcal} <Text style={{ fontSize: 14, fontWeight: '500', color: C.textMuted }}>kcal</Text></Text>
+          </View>
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary }} />
+              <Text style={{ fontSize: 13, color: C.textMuted }}>{doneMeals}/{meals.length} refeições</Text>
+            </View>
+            <View style={{ width: 100, height: 6, borderRadius: 3, backgroundColor: C.border, overflow: 'hidden' }}>
+              <View style={{ height: 6, borderRadius: 3, backgroundColor: C.primary, width: `${(doneMeals / meals.length) * 100}%` as any }} />
+            </View>
           </View>
         </View>
 
+        {/* Macros */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+          {[
+            { label: 'Proteína', value: `${Math.round(totalKcal * 0.3 / 4)}g`,  color: '#3B82F6', bg: '#EFF6FF' },
+            { label: 'Carbo',    value: `${Math.round(totalKcal * 0.45 / 4)}g`, color: '#F97316', bg: '#FFF7ED' },
+            { label: 'Gordura',  value: `${Math.round(totalKcal * 0.25 / 9)}g`, color: '#EAB308', bg: '#FEFCE8' },
+          ].map(m => (
+            <View key={m.label} style={{ flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', backgroundColor: C.surface,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.color, marginBottom: 4 }} />
+              <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>{m.value}</Text>
+              <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600', marginTop: 2 }}>{m.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Refeições */}
         {meals.map((meal, i) => (
-          <View key={i} style={[s.mealCard, { backgroundColor: colors.surface, borderColor: meal.done ? colors.cyan + '40' : colors.border }]}>
-            <TouchableOpacity style={s.mealHeader} onPress={() => setExpanded(expanded === i ? null : i)}>
-              <View style={s.mealLeft}>
-                <TouchableOpacity style={[s.checkBtn, { borderColor: colors.border }, meal.done && { backgroundColor: colors.cyan, borderColor: colors.cyan }]} onPress={() => toggleDone(i)}>
-                  {meal.done && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </TouchableOpacity>
-                <View>
-                  <Text style={[s.mealName, { color: colors.text }, meal.done && { textDecorationLine: 'line-through', color: colors.textMuted }]}>{meal.name}</Text>
-                  <Text style={[s.mealTime, { color: colors.textMuted }]}>{meal.time} · {meal.kcal} kcal</Text>
-                </View>
+          <View key={i} style={card}>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+              onPress={() => setExpanded(expanded === i ? null : i)}>
+              <TouchableOpacity style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center',
+                borderColor: meal.done ? C.primary : C.border, backgroundColor: meal.done ? C.primary : 'transparent' }}
+                onPress={() => toggleDone(i)}>
+                {meal.done && <Ionicons name="checkmark" size={14} color="#fff" />}
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: meal.done ? C.textMuted : C.text,
+                  ...(meal.done ? { textDecorationLine: 'line-through' as const } : {}) }}>{meal.name}</Text>
+                <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{meal.time} · {meal.kcal} kcal</Text>
               </View>
-              <View style={s.mealRight}>
-                <View style={[s.originBadge, { backgroundColor: ORIGIN_COLORS[meal.origin] + '25' }]}>
-                  <Text style={[s.originText, { color: ORIGIN_COLORS[meal.origin] }]}>{meal.origin}</Text>
-                </View>
-                <Ionicons name={expanded === i ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
+              <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ORIGIN[meal.origin].bg }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: ORIGIN[meal.origin].color }}>{meal.origin}</Text>
               </View>
+              <Ionicons name={expanded === i ? 'chevron-up' : 'chevron-down'} size={16} color={C.textMuted} />
             </TouchableOpacity>
             {expanded === i && (
-              <View style={[s.mealBody, { borderTopColor: colors.border }]}>
+              <View style={{ paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: C.border, gap: 6 }}>
                 {meal.foods.map((f, fi) => (
-                  <View key={fi} style={s.foodItem}>
-                    <View style={[s.foodDot, { backgroundColor: colors.cyan }]} />
-                    <Text style={[s.foodText, { color: colors.textMuted }]}>{f}</Text>
+                  <View key={fi} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary }} />
+                    <Text style={{ fontSize: 14, color: C.textMuted }}>{f}</Text>
                   </View>
                 ))}
-                <TouchableOpacity style={[s.nutrIaBtn, { backgroundColor: colors.surface2, borderColor: colors.cyan + '40' }]} onPress={() => router.push('/(tabs)/messages')}>
-                  <Ionicons name="sparkles-outline" size={14} color={colors.cyan} />
-                  <Text style={[s.nutrIaBtnText, { color: colors.cyan }]}>Sugerir com NutrIA</Text>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
+                  backgroundColor: C.surface2, alignSelf: 'flex-start', marginTop: 6 }}
+                  onPress={() => router.push('/(tabs)/messages')}>
+                  <Ionicons name="sparkles-outline" size={14} color={C.primary} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: C.primary }}>Sugerir com NutrIA</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
         ))}
 
-        <View style={s.actionsRow}>
-          <TouchableOpacity style={[s.actionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push('/(tabs)/messages')}>
-            <Ionicons name="person-outline" size={16} color={colors.text} />
-            <Text style={[s.actionBtnText, { color: colors.text }]}>Nutricionista</Text>
+        {/* Ações */}
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, padding: 14,
+            borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface }}
+            onPress={() => router.push('/(tabs)/messages')}>
+            <Ionicons name="person-outline" size={16} color={C.text} />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>Nutricionista</Text>
           </TouchableOpacity>
-          <LinearGradient colors={GRAD} start={{x:0,y:0}} end={{x:1,y:0}} style={s.actionBtnGrad}>
-            <TouchableOpacity style={s.actionBtnGradInner} onPress={() => router.push('/(tabs)/messages')}>
-              <Ionicons name="sparkles-outline" size={16} color="#fff" />
-              <Text style={s.actionBtnGradText}>NutrIA</Text>
-            </TouchableOpacity>
-          </LinearGradient>
+          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, padding: 14,
+            backgroundColor: C.primary }}
+            onPress={() => router.push('/(tabs)/messages')}>
+            <Ionicons name="sparkles-outline" size={16} color="#fff" />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>NutrIA</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={{ height: 100 }} />
@@ -117,37 +151,6 @@ export default function PlanScreen() {
 }
 
 const s = StyleSheet.create({
-  scroll:          { padding: 20, paddingTop: 56 },
-  title:           { fontSize: 26, fontWeight: '900', letterSpacing: -1, marginBottom: 16 },
-  daysScroll:      { marginBottom: 16 },
-  dayBtn:          { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, marginRight: 8, borderWidth: 1 },
-  dayBtnActive:    { backgroundColor: '#7C5CBF', borderColor: '#7C5CBF' },
-  dayText:         { fontSize: 14, fontWeight: '700' },
-  macrosCard:      { borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1.5 },
-  macrosTitle:     { fontSize: 13, fontWeight: '700', marginBottom: 12 },
-  macrosRow:       { flexDirection: 'row', justifyContent: 'space-between' },
-  macroItem:       { alignItems: 'center' },
-  macroValue:      { fontSize: 16, fontWeight: '900' },
-  macroLabel:      { fontSize: 11, fontWeight: '600', marginTop: 2 },
-  mealCard:        { borderRadius: 18, marginBottom: 10, borderWidth: 1, overflow: 'hidden' },
-  mealHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
-  mealLeft:        { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  checkBtn:        { width: 26, height: 26, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  mealName:        { fontSize: 15, fontWeight: '700' },
-  mealTime:        { fontSize: 12, marginTop: 2 },
-  mealRight:       { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  originBadge:     { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  originText:      { fontSize: 11, fontWeight: '700' },
-  mealBody:        { paddingHorizontal: 16, paddingBottom: 16, gap: 6, borderTopWidth: 1 },
-  foodItem:        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
-  foodDot:         { width: 6, height: 6, borderRadius: 3 },
-  foodText:        { fontSize: 14, fontWeight: '500' },
-  nutrIaBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, alignSelf: 'flex-start', marginTop: 8 },
-  nutrIaBtnText:   { fontSize: 12, fontWeight: '700' },
-  actionsRow:      { flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 10 },
-  actionBtn:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, padding: 14, borderWidth: 1 },
-  actionBtnText:   { fontSize: 14, fontWeight: '700' },
-  actionBtnGrad:   { flex: 1, borderRadius: 14, overflow: 'hidden' },
-  actionBtnGradInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14 },
-  actionBtnGradText:  { fontSize: 14, fontWeight: '700', color: '#fff' },
+  scroll: { padding: 20 },
+  title:  { fontSize: 26, fontWeight: '800', letterSpacing: -0.5, marginBottom: 16 },
 });

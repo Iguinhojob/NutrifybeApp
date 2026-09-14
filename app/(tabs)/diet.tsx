@@ -1,8 +1,7 @@
 import { usePremiumTheme } from '@/context/theme';
+import { useAppLayout } from '@/hooks/useAppLayout';
 import { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { GRAD } from '@/constants/darkTheme';
 
 const DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const DIET: Record<string, { meal: string; food: string; kcal: number; protein: number; carbs: number; fat: number }[]> = {
@@ -15,41 +14,72 @@ const DIET: Record<string, { meal: string; food: string; kcal: number; protein: 
   Dom: [{ meal: 'Café da manhã', food: 'Pão integral com ovos e abacate', kcal: 400, protein: 20, carbs: 38, fat: 18 }, { meal: 'Almoço', food: 'Frango assado com arroz e feijão', kcal: 700, protein: 50, carbs: 76, fat: 16 }, { meal: 'Lanche', food: 'Iogurte com chia e mel', kcal: 190, protein: 10, carbs: 28, fat: 4 }, { meal: 'Jantar', food: 'Salada completa com atum e ovos', kcal: 420, protein: 38, carbs: 18, fat: 20 }],
 };
 
+const MACRO_COLORS = [
+  { label: 'Prot', color: '#3B82F6' },
+  { label: 'Carb', color: '#F97316' },
+  { label: 'Gord', color: '#EAB308' },
+];
+
 export default function DietScreen() {
   const { colors: C } = usePremiumTheme();
+  const { topPad } = useAppLayout();
   const [selectedDay, setSelectedDay] = useState('Seg');
-  const meals = DIET[selectedDay], totalKcal = meals.reduce((a, m) => a + m.kcal, 0);
+  const meals = DIET[selectedDay];
+  const totalKcal = meals.reduce((a, m) => a + m.kcal, 0);
+
+  const card = { backgroundColor: C.surface, borderRadius: 18, padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 } as const;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 20, paddingTop: 56, gap: 12 }}>
-      <Text style={{ fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -1 }}>Dieta Semanal</Text>
-      <Text style={{ fontSize: 14, color: C.textMuted, fontWeight: '500' }}>Seu plano alimentar personalizado</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 20, paddingTop: topPad }}>
+      <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5, marginBottom: 4 }}>Dieta Semanal</Text>
+      <Text style={{ fontSize: 14, color: C.textMuted, marginBottom: 20 }}>Seu plano alimentar personalizado</Text>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+      {/* Seletor de dias */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
         {DAYS.map(d => (
-          <TouchableOpacity key={d} style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, marginRight: 8, borderWidth: 1, backgroundColor: selectedDay === d ? C.purple : C.surface, borderColor: selectedDay === d ? C.purple : C.border }} onPress={() => setSelectedDay(d)}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: selectedDay === d ? C.white : C.textMuted }}>{d}</Text>
+          <TouchableOpacity key={d} style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, marginRight: 8,
+            backgroundColor: selectedDay === d ? C.primary : C.surface,
+            shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 }}
+            onPress={() => setSelectedDay(d)}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: selectedDay === d ? '#fff' : C.textMuted }}>{d}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      <LinearGradient colors={GRAD} start={{x:0,y:0}} end={{x:1,y:0}} style={{ borderRadius: 16, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.8)', fontWeight: '600' }}>Total do dia</Text>
-        <Text style={{ fontSize: 22, fontWeight: '900', color: '#fff' }}>{totalKcal} kcal</Text>
-      </LinearGradient>
+      {/* Total do dia */}
+      <View style={[card, { backgroundColor: C.primary, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+        <View>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: '600' }}>Total do dia</Text>
+          <Text style={{ fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -1 }}>{totalKcal} kcal</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          {[
+            { label: 'Prot', val: meals.reduce((a, m) => a + m.protein, 0) },
+            { label: 'Carb', val: meals.reduce((a, m) => a + m.carbs, 0) },
+            { label: 'Gord', val: meals.reduce((a, m) => a + m.fat, 0) },
+          ].map(m => (
+            <Text key={m.label} style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: '600' }}>{m.label}: {m.val}g</Text>
+          ))}
+        </View>
+      </View>
 
+      {/* Refeições */}
       {meals.map((m, i) => (
-        <View key={i} style={{ backgroundColor: C.surface, borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: C.border }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: C.cyan }}>{m.meal}</Text>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: C.textMuted }}>{m.kcal} kcal</Text>
+        <View key={i} style={card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: C.primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>{m.meal}</Text>
+            <View style={{ backgroundColor: C.surface2, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: C.primaryDark }}>{m.kcal} kcal</Text>
+            </View>
           </View>
-          <Text style={{ fontSize: 14, color: C.text, lineHeight: 20, fontWeight: '500' }}>{m.food}</Text>
-          <View style={{ flexDirection: 'row', gap: 20 }}>
-            {[{ label: 'Prot', value: `${m.protein}g`, color: C.cyan }, { label: 'Carb', value: `${m.carbs}g`, color: C.warning }, { label: 'Gord', value: `${m.fat}g`, color: C.danger }].map(mac => (
-              <View key={mac.label} style={{ alignItems: 'center' }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: mac.color }}>{mac.value}</Text>
-                <Text style={{ fontSize: 11, color: C.textMuted, fontWeight: '600' }}>{mac.label}</Text>
+          <Text style={{ fontSize: 14, color: C.text, lineHeight: 20, marginBottom: 12 }}>{m.food}</Text>
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            {[{ label: 'Prot', value: m.protein, color: '#3B82F6' }, { label: 'Carb', value: m.carbs, color: '#F97316' }, { label: 'Gord', value: m.fat, color: '#EAB308' }].map(mac => (
+              <View key={mac.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: mac.color }} />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>{mac.value}g</Text>
+                <Text style={{ fontSize: 11, color: C.textMuted }}>{mac.label}</Text>
               </View>
             ))}
           </View>

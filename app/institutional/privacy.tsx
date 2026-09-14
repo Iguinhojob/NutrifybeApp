@@ -1,5 +1,4 @@
 import { usePremiumTheme } from '@/context/theme';
-import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const SECTIONS = [
@@ -12,29 +11,22 @@ const SECTIONS = [
 ];
 
 export default function PrivacyScreen() {
-  const { colors, isDark } = usePremiumTheme();
-  const s = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
-
+  const { colors } = usePremiumTheme();
   return (
-    <ScrollView style={s.screen} contentContainerStyle={s.scroll}>
-      <Text style={s.updated}>Última atualização: Janeiro 2025</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 20, gap: 12 }}>
+      <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 4, fontWeight: '500' }}>Última atualização: Janeiro 2025</Text>
       {SECTIONS.map(section => (
-        <View key={section.title} style={s.card}>
-          <Text style={s.cardTitle}>{section.title}</Text>
-          <Text style={s.cardText}>{section.text}</Text>
+        <View key={section.title} style={[s.card, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
+          <Text style={[s.cardTitle, { color: colors.primary }]}>{section.title}</Text>
+          <Text style={[s.cardText, { color: colors.textMuted }]}>{section.text}</Text>
         </View>
       ))}
     </ScrollView>
   );
 }
 
-function createStyles(colors: any, isDark: boolean) {
-  return StyleSheet.create({
-    screen:    { flex: 1, backgroundColor: colors.bg },
-    scroll:    { padding: 20, gap: 12 },
-    updated:   { fontSize: 13, color: colors.textMuted, marginBottom: 4, fontWeight: '500' },
-    card:      { backgroundColor: colors.surface, borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: colors.border },
-    cardTitle: { fontSize: 15, fontWeight: '800', color: colors.cyan },
-    cardText:  { fontSize: 14, color: colors.textMuted, lineHeight: 22, fontWeight: '500' },
-  });
-}
+const s = StyleSheet.create({
+  card:      { borderRadius: 16, padding: 16, gap: 8, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  cardTitle: { fontSize: 15, fontWeight: '800' },
+  cardText:  { fontSize: 14, lineHeight: 22, fontWeight: '500' },
+});

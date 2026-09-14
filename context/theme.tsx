@@ -9,17 +9,17 @@ type ThemeContextType = {
 };
 
 const ThemeContext = createContext<ThemeContextType>({
-  isDark: true,
+  isDark: false,
   toggleTheme: () => {},
-  colors: darkTheme,
+  colors: lightTheme,
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem('darkMode').then(val => {
-      if (val === 'false') setIsDark(false);
+      if (val === 'true') setIsDark(true);
     });
   }, []);
 
