@@ -35,7 +35,7 @@ function createStyles(colors: any, isDark: boolean) {
     scroll:    { padding: 20, gap: 12 },
     updated:   { fontSize: 13, color: colors.textMuted, marginBottom: 4, fontWeight: '500' },
     card:      { backgroundColor: colors.surface, borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: colors.border },
-    cardTitle: { fontSize: 15, fontWeight: '800', color: colors.primary },
+    cardTitle: { fontSize: 15, fontWeight: '800', color: colors.cyan },
     cardText:  { fontSize: 14, color: colors.textMuted, lineHeight: 22, fontWeight: '500' },
   });
 }

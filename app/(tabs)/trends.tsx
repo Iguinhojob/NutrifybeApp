@@ -1,204 +1,101 @@
-import { useAuth } from '@/context/auth';
 import { usePremiumTheme } from '@/context/theme';
-import { useMemo, useState } from 'react';
-import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { LayoutChangeEvent, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const DATA = [1820, 1950, 2100, 2450, 1780, 2050, 1900];
 const LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const MAX_V = Math.max(...DATA);
-const MIN_V = Math.min(...DATA);
-const CHART_H = 130;
+const MAX_V = Math.max(...DATA), MIN_V = Math.min(...DATA), CHART_H = 130;
 const avg = Math.round(DATA.reduce((a, b) => a + b, 0) / DATA.length);
-const GOAL = 1900;
-const percent = Math.round((DATA.filter(v => v <= GOAL).length / DATA.length) * 100);
+const GOAL = 1900, done = DATA.filter(v => v <= GOAL).length;
+const percent = Math.round((done / DATA.length) * 100);
+const consistency = Math.round((done / 7) * 100);
 
-function buildInsight() {
-  const done = DATA.filter(v => v <= GOAL).length;
-  const consistency = Math.round((done / 7) * 100);
-  const risk = consistency >= 70 ? 'baixo' : consistency >= 40 ? 'médio' : 'alto';
-  const riskColor = risk === 'baixo' ? '#22C55E' : risk === 'médio' ? '#F59E0B' : '#EF4444';
-  const weekSummary = consistency >= 70
-    ? `Excelente semana! Você manteve ${done} dias dentro da meta calórica.`
-    : `Você ficou ${7 - done} dias acima da meta. Foque na consistência!`;
-  return { consistency, risk, riskColor, done, weekSummary };
-}
-
-function LineChart({ colors }: { colors: any }) {
+function LineChart({ C }: { C: any }) {
   const [width, setWidth] = useState(0);
-
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
-
-  const points = width > 0
-    ? DATA.map((v, i) => ({
-        x: (i / (DATA.length - 1)) * width,
-        y: CHART_H - ((v - MIN_V) / (MAX_V - MIN_V)) * CHART_H,
-        value: v,
-      }))
-    : [];
-
+  const points = width > 0 ? DATA.map((v, i) => ({ x: (i / (DATA.length - 1)) * width, y: CHART_H - ((v - MIN_V) / (MAX_V - MIN_V)) * CHART_H })) : [];
   return (
     <View>
-      {/* Y labels + chart area */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-        {/* Y axis */}
         <View style={{ width: 38, height: CHART_H, justifyContent: 'space-between', paddingBottom: 2 }}>
-          {[MAX_V, Math.round((MAX_V + MIN_V) / 2), MIN_V].map(v => (
-            <Text key={v} style={{ fontSize: 9, color: colors.textDim, textAlign: 'right' }}>{v}</Text>
-          ))}
+          {[MAX_V, Math.round((MAX_V + MIN_V) / 2), MIN_V].map(v => <Text key={v} style={{ fontSize: 9, color: C.textDim, textAlign: 'right' }}>{v}</Text>)}
         </View>
-
-        {/* Chart */}
         <View style={{ flex: 1, height: CHART_H }} onLayout={onLayout}>
           {width > 0 && (
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-              {/* Linhas de grade */}
-              {[0, 0.5, 1].map(f => (
-                <View key={f} style={{
-                  position: 'absolute',
-                  top: f * CHART_H,
-                  left: 0, right: 0,
-                  height: 1,
-                  backgroundColor: colors.border,
-                  opacity: 0.5,
-                }} />
-              ))}
-
-              {/* Segmentos de linha */}
+              {[0, 0.5, 1].map(f => <View key={f} style={{ position: 'absolute', top: f * CHART_H, left: 0, right: 0, height: 1, backgroundColor: C.border, opacity: 0.5 }} />)}
               {points.slice(1).map((p, i) => {
-                const prev = points[i];
-                const dx = p.x - prev.x;
-                const dy = p.y - prev.y;
-                const len = Math.sqrt(dx * dx + dy * dy);
-                const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-                return (
-                  <View key={i} style={{
-                    position: 'absolute',
-                    left: prev.x,
-                    top: prev.y,
-                    width: len,
-                    height: 2,
-                    backgroundColor: colors.primary,
-                    borderRadius: 1,
-                    transformOrigin: 'left center',
-                    transform: [{ rotate: `${angle}deg` }],
-                  }} />
-                );
+                const prev = points[i], dx = p.x - prev.x, dy = p.y - prev.y;
+                const len = Math.sqrt(dx * dx + dy * dy), angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                return <View key={i} style={{ position: 'absolute', left: prev.x, top: prev.y, width: len, height: 2, backgroundColor: C.purple, borderRadius: 1, transformOrigin: 'left center', transform: [{ rotate: `${angle}deg` }] }} />;
               })}
-
-              {/* Pontos */}
-              {points.map((p, i) => (
-                <View key={i} style={{
-                  position: 'absolute',
-                  left: p.x - 5,
-                  top: p.y - 5,
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: colors.primary,
-                  borderWidth: 2,
-                  borderColor: colors.surface,
-                }} />
-              ))}
+              {points.map((p, i) => <View key={i} style={{ position: 'absolute', left: p.x - 5, top: p.y - 5, width: 10, height: 10, borderRadius: 5, backgroundColor: C.cyan, borderWidth: 2, borderColor: C.surface }} />)}
             </View>
           )}
         </View>
       </View>
-
-      {/* X labels */}
       <View style={{ flexDirection: 'row', marginLeft: 38, marginTop: 6 }}>
-        {LABELS.map(l => (
-          <Text key={l} style={{ flex: 1, fontSize: 10, color: colors.textDim, textAlign: 'center' }}>{l}</Text>
-        ))}
+        {LABELS.map(l => <Text key={l} style={{ flex: 1, fontSize: 10, color: C.textDim, textAlign: 'center' }}>{l}</Text>)}
       </View>
     </View>
   );
 }
 
 export default function TrendsScreen() {
-  const { user } = useAuth();
-  const { colors, isDark } = usePremiumTheme();
-  const s = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
-  const insight = buildInsight();
+  const { colors: C } = usePremiumTheme();
+  const riskColor = consistency >= 70 ? C.success : consistency >= 40 ? C.warning : C.danger;
+  const weekSummary = consistency >= 70 ? `Excelente semana! Você manteve ${done} dias dentro da meta calórica.` : `Você ficou ${7 - done} dias acima da meta. Foque na consistência!`;
 
   return (
-    <ScrollView style={s.screen} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-      <Text style={s.title}>Evolução</Text>
-      <Text style={s.subtitle}>Seu desempenho ao longo do tempo</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 20, paddingTop: 56, gap: 14 }} showsVerticalScrollIndicator={false}>
+      <Text style={{ fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -1 }}>Evolução</Text>
+      <Text style={{ fontSize: 14, color: C.textMuted, fontWeight: '500' }}>Seu desempenho ao longo do tempo</Text>
 
-      {/* Insight */}
-      <View style={[s.insightCard, { backgroundColor: colors.aiBannerBg, borderColor: colors.aiBannerBorder }]}>
-        <View style={s.insightHeader}>
-          <Ionicons name="sparkles-outline" size={16} color={colors.purpleAccent} />
-          <Text style={s.insightTitle}>Insight da semana</Text>
-          <View style={[s.riskBadge, { backgroundColor: insight.riskColor + '25' }]}>
-            <Text style={[s.riskText, { color: insight.riskColor }]}>Risco {insight.risk}</Text>
+      <View style={{ borderRadius: 18, padding: 16, borderWidth: 1, gap: 8, backgroundColor: C.surface, borderColor: C.border }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="sparkles-outline" size={16} color={C.purpleLight} />
+          <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: C.text }}>Insight da semana</Text>
+          <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: riskColor + '25' }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: riskColor }}>{consistency >= 70 ? 'Risco baixo' : consistency >= 40 ? 'Risco médio' : 'Risco alto'}</Text>
           </View>
         </View>
-        <Text style={s.insightText}>{insight.weekSummary}</Text>
+        <Text style={{ fontSize: 13, lineHeight: 20, fontWeight: '500', color: C.textMuted }}>{weekSummary}</Text>
       </View>
 
-      {/* Gráfico */}
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Calorias — Últimos 7 dias</Text>
-        <LineChart colors={colors} />
+      <View style={{ borderRadius: 20, padding: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface }}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 12 }}>Calorias — Últimos 7 dias</Text>
+        <LineChart C={C} />
       </View>
 
-      {/* Stats */}
-      <View style={s.statsRow}>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
         {[
-          { label: 'Média kcal/dia', value: String(avg), highlight: false },
-          { label: 'Meta atingida',  value: `${percent}%`, highlight: true },
-          { label: 'Meta kcal',      value: String(GOAL), highlight: false },
+          { label: 'Média kcal/dia', value: String(avg),   highlight: false },
+          { label: 'Meta atingida',  value: `${percent}%`, highlight: true  },
+          { label: 'Meta kcal',      value: String(GOAL),  highlight: false },
         ].map(stat => (
-          <View key={stat.label} style={[s.statCard, stat.highlight && { backgroundColor: colors.text }]}>
-            <Text style={[s.statValue, { color: stat.highlight ? colors.gold : colors.primary }]}>{stat.value}</Text>
-            <Text style={[s.statLabel, { color: stat.highlight ? colors.bg + 'bb' : colors.textMuted }]}>{stat.label}</Text>
+          <View key={stat.label} style={{ flex: 1, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: stat.highlight ? C.purple : C.border, backgroundColor: stat.highlight ? C.purple : C.surface }}>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: stat.highlight ? C.white : C.cyan }}>{stat.value}</Text>
+            <Text style={{ fontSize: 10, fontWeight: '700', textAlign: 'center', marginTop: 4, color: stat.highlight ? C.white + 'bb' : C.textMuted }}>{stat.label}</Text>
           </View>
         ))}
       </View>
 
-      {/* Resumo */}
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Resumo Semanal</Text>
+      <View style={{ borderRadius: 20, padding: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface }}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 12 }}>Resumo Semanal</Text>
         {[
-          { label: 'Consistência',        value: `${insight.consistency}%`, color: insight.riskColor },
-          { label: 'Dias dentro da meta', value: `${insight.done}/7`,       color: colors.primary },
-          { label: 'Melhor dia',          value: `${MIN_V} kcal`,           color: colors.purpleAccent },
-          { label: 'Pior dia',            value: `${MAX_V} kcal`,           color: colors.danger },
+          { label: 'Consistência',        value: `${consistency}%`, color: riskColor },
+          { label: 'Dias dentro da meta', value: `${done}/7`,       color: C.cyan },
+          { label: 'Melhor dia',          value: `${MIN_V} kcal`,   color: C.purpleLight },
+          { label: 'Pior dia',            value: `${MAX_V} kcal`,   color: C.danger },
         ].map((item, i, arr) => (
-          <View key={item.label} style={[s.summaryRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-            <Text style={s.summaryLabel}>{item.label}</Text>
-            <Text style={[s.summaryValue, { color: item.color }]}>{item.value}</Text>
+          <View key={item.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 11, ...(i < arr.length - 1 ? { borderBottomWidth: 1, borderBottomColor: C.border } : {}) }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>{item.label}</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: item.color }}>{item.value}</Text>
           </View>
         ))}
       </View>
-
       <View style={{ height: 100 }} />
     </ScrollView>
   );
-}
-
-function createStyles(colors: any, isDark: boolean) {
-  return StyleSheet.create({
-    screen:       { flex: 1, backgroundColor: colors.bg },
-    scroll:       { padding: 20, paddingTop: 56, gap: 14 },
-    title:        { fontSize: 26, fontWeight: '900', color: colors.text, letterSpacing: -1 },
-    subtitle:     { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
-    insightCard:  { borderRadius: 18, padding: 16, borderWidth: 1, gap: 8 },
-    insightHeader:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
-    insightTitle: { flex: 1, fontSize: 14, fontWeight: '800', color: colors.text },
-    riskBadge:    { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-    riskText:     { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-    insightText:  { fontSize: 13, lineHeight: 20, fontWeight: '500', color: colors.textMuted },
-    card:         { borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-    cardTitle:    { fontSize: 14, fontWeight: '800', color: colors.text, marginBottom: 12 },
-    statsRow:     { flexDirection: 'row', gap: 8 },
-    statCard:     { flex: 1, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-    statValue:    { fontSize: 18, fontWeight: '900' },
-    statLabel:    { fontSize: 10, fontWeight: '700', textAlign: 'center', marginTop: 4, color: colors.textMuted },
-    summaryRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 11 },
-    summaryLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
-    summaryValue: { fontSize: 14, fontWeight: '800' },
-  });
 }

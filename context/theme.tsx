@@ -1,27 +1,25 @@
-import { darkPremium, lightPremium } from '@/constants/theme';
+import { darkTheme, lightTheme, AppTheme } from '@/constants/darkTheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-
-type Colors = typeof lightPremium;
 
 type ThemeContextType = {
   isDark: boolean;
   toggleTheme: () => void;
-  colors: Colors;
+  colors: AppTheme;
 };
 
 const ThemeContext = createContext<ThemeContextType>({
-  isDark: false,
+  isDark: true,
   toggleTheme: () => {},
-  colors: lightPremium,
+  colors: darkTheme,
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
     AsyncStorage.getItem('darkMode').then(val => {
-      if (val === 'true') setIsDark(true);
+      if (val === 'false') setIsDark(false);
     });
   }, []);
 
@@ -34,7 +32,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme, colors: isDark ? darkPremium : lightPremium }}>
+    <ThemeContext.Provider value={{ isDark, toggleTheme, colors: isDark ? darkTheme : lightTheme }}>
       {children}
     </ThemeContext.Provider>
   );

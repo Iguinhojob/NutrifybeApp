@@ -3,29 +3,46 @@ import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
-const DURATION = 2800;
+const BG      = '#1A3C2E';
+const GREEN   = '#4CAF50';
+const LIGHT   = '#A8D5B5';
+const WHITE   = '#FFFFFF';
+const DURATION = 2600;
 
 export default function SplashScreen() {
   const { isAuthenticated } = useAuth();
-  const fadeIn  = useRef(new Animated.Value(0)).current;
-  const slideUp = useRef(new Animated.Value(20)).current;
+  const scale   = useRef(new Animated.Value(0.7)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
   const fadeOut = useRef(new Animated.Value(1)).current;
-  const barWidth = useRef(new Animated.Value(0)).current;
+  const dot1    = useRef(new Animated.Value(0.3)).current;
+  const dot2    = useRef(new Animated.Value(0.3)).current;
+  const dot3    = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
+    // Logo pop-in
     Animated.parallel([
-      Animated.timing(fadeIn,  { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.timing(slideUp, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.spring(scale,   { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }),
     ]).start();
 
-    Animated.timing(barWidth, {
-      toValue: 1, duration: DURATION - 400,
-      delay: 300, easing: Easing.inOut(Easing.ease),
-      useNativeDriver: false,
-    }).start();
+    // Dots pulsing
+    const pulse = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1,   duration: 350, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.3, duration: 350, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      );
+
+    const d1 = pulse(dot1, 0);
+    const d2 = pulse(dot2, 200);
+    const d3 = pulse(dot3, 400);
+    d1.start(); d2.start(); d3.start();
 
     const t = setTimeout(() => {
-      Animated.timing(fadeOut, { toValue: 0, duration: 500, useNativeDriver: true }).start(() => {
+      d1.stop(); d2.stop(); d3.stop();
+      Animated.timing(fadeOut, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
         router.replace(isAuthenticated ? '/(tabs)' : '/auth/login');
       });
     }, DURATION);
@@ -33,70 +50,80 @@ export default function SplashScreen() {
     return () => clearTimeout(t);
   }, [isAuthenticated]);
 
-  const barW = barWidth.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
-
   return (
-    <Animated.View style={[s.screen, { opacity: Animated.multiply(fadeIn, fadeOut) }]}>
-      <Animated.View style={{ transform: [{ translateY: slideUp }], alignItems: 'center', gap: 6 }}>
-        {/* Ícone da marca */}
-        <View style={s.iconBox}>
-          <View style={s.iconLeaf} />
-          <View style={[s.iconLeaf, s.iconLeaf2]} />
+    <Animated.View style={[s.screen, { opacity: fadeOut }]}>
+      <Animated.View style={[s.center, { opacity, transform: [{ scale }] }]}>
+        {/* Ícone */}
+        <View style={s.iconWrap}>
+          <View style={s.circle}>
+            <View style={s.leaf} />
+            <View style={[s.leaf, s.leafRight]} />
+            <View style={s.stem} />
+          </View>
         </View>
 
         <Text style={s.name}>nutrifybe</Text>
-        <Text style={s.tagline}>nutrição que faz sentido</Text>
+        <Text style={s.tagline}>seu guia de nutrição inteligente</Text>
       </Animated.View>
 
-      {/* Barra de loading */}
-      <View style={s.barTrack}>
-        <Animated.View style={[s.barFill, { width: barW }]} />
+      {/* Dots loader */}
+      <View style={s.dots}>
+        {[dot1, dot2, dot3].map((d, i) => (
+          <Animated.View key={i} style={[s.dot, { opacity: d }]} />
+        ))}
       </View>
     </Animated.View>
   );
 }
 
-const GREEN = '#1B4332';
-const GREEN_MID = '#2D6A4F';
-const ACCENT = '#52B788';
-const BG = '#F6FBF7';
-
 const s = StyleSheet.create({
   screen: {
     flex: 1, backgroundColor: BG,
-    alignItems: 'center', justifyContent: 'center', gap: 40,
+    alignItems: 'center', justifyContent: 'center',
   },
-  iconBox: {
-    width: 72, height: 72, borderRadius: 22,
+  center: { alignItems: 'center', gap: 12 },
+
+  iconWrap: { marginBottom: 8 },
+  circle: {
+    width: 96, height: 96, borderRadius: 48,
     backgroundColor: GREEN,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 8,
   },
-  iconLeaf: {
+  leaf: {
     position: 'absolute',
-    width: 28, height: 36,
-    borderRadius: 14,
-    backgroundColor: ACCENT,
-    transform: [{ rotate: '-30deg' }, { translateX: -6 }],
+    width: 30, height: 42,
+    borderRadius: 15,
+    backgroundColor: WHITE,
+    opacity: 0.9,
+    top: 16, left: 22,
+    transform: [{ rotate: '-25deg' }],
   },
-  iconLeaf2: {
-    backgroundColor: '#74C69D',
-    transform: [{ rotate: '30deg' }, { translateX: 6 }],
+  leafRight: {
+    left: 44,
+    opacity: 0.6,
+    transform: [{ rotate: '25deg' }],
   },
+  stem: {
+    position: 'absolute',
+    bottom: 16, width: 4, height: 20,
+    borderRadius: 2, backgroundColor: WHITE, opacity: 0.8,
+  },
+
   name: {
-    fontSize: 36, fontWeight: '900', color: GREEN,
-    letterSpacing: -1.5,
+    fontSize: 38, fontWeight: '900',
+    color: WHITE, letterSpacing: -1,
   },
   tagline: {
-    fontSize: 14, color: ACCENT, fontWeight: '600', letterSpacing: 0.5,
+    fontSize: 13, color: LIGHT,
+    fontWeight: '500', letterSpacing: 0.3,
   },
-  barTrack: {
-    position: 'absolute', bottom: 60,
-    width: 120, height: 3, borderRadius: 2,
-    backgroundColor: '#D8F3DC',
-    overflow: 'hidden',
+
+  dots: {
+    position: 'absolute', bottom: 56,
+    flexDirection: 'row', gap: 8,
   },
-  barFill: {
-    height: 3, borderRadius: 2, backgroundColor: ACCENT,
+  dot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: LIGHT,
   },
 });

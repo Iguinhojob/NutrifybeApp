@@ -1,5 +1,4 @@
 import { usePremiumTheme } from '@/context/theme';
-import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const HISTORY = [
@@ -13,67 +12,34 @@ const HISTORY = [
 ];
 
 export default function HistoryScreen() {
-  const { colors, isDark } = usePremiumTheme();
-  const s = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
-
-  const STATUS_COLOR: Record<string, string> = {
-    green:  colors.green,
-    yellow: colors.yellow,
-    red:    colors.red,
-  };
+  const { colors: C } = usePremiumTheme();
+  const STATUS_COLOR: Record<string, string> = { green: C.success, yellow: C.warning, red: C.danger };
 
   return (
-    <ScrollView style={s.screen} contentContainerStyle={s.scroll}>
-      <Text style={s.title}>Histórico</Text>
-      <Text style={s.subtitle}>Acompanhe sua evolução diária</Text>
-
-      <View style={s.legend}>
-        {[
-          { color: colors.green,  label: 'Bom' },
-          { color: colors.yellow, label: 'Regular' },
-          { color: colors.red,    label: 'Ruim' },
-        ].map(l => (
-          <View key={l.label} style={s.legendItem}>
-            <View style={[s.dot, { backgroundColor: l.color }]} />
-            <Text style={s.legendText}>{l.label}</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 20, paddingTop: 56, gap: 10 }}>
+      <Text style={{ fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -1 }}>Histórico</Text>
+      <Text style={{ fontSize: 14, color: C.textMuted, fontWeight: '500', marginBottom: 8 }}>Acompanhe sua evolução diária</Text>
+      <View style={{ flexDirection: 'row', gap: 16, marginBottom: 4 }}>
+        {[{ color: C.success, label: 'Bom' }, { color: C.warning, label: 'Regular' }, { color: C.danger, label: 'Ruim' }].map(l => (
+          <View key={l.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: l.color }} />
+            <Text style={{ fontSize: 13, color: C.textMuted }}>{l.label}</Text>
           </View>
         ))}
       </View>
-
       {HISTORY.map((item, i) => (
-        <View key={i} style={s.card}>
-          <View style={[s.indicator, { backgroundColor: STATUS_COLOR[item.status] }]} />
-          <View style={s.info}>
-            <Text style={s.dayName}>{item.day}</Text>
-            <Text style={s.dateText}>{item.date}</Text>
+        <View key={i} style={{ backgroundColor: C.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: C.border }}>
+          <View style={{ width: 5, height: 48, borderRadius: 3, backgroundColor: STATUS_COLOR[item.status] }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>{item.day}</Text>
+            <Text style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>{item.date}</Text>
           </View>
-          <View style={s.right}>
-            <Text style={s.calories}>{item.calories}</Text>
-            <Text style={[s.statusLabel, { color: STATUS_COLOR[item.status] }]}>{item.label}</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>{item.calories}</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', marginTop: 2, color: STATUS_COLOR[item.status] }}>{item.label}</Text>
           </View>
         </View>
       ))}
     </ScrollView>
   );
-}
-
-function createStyles(colors: any, isDark: boolean) {
-  return StyleSheet.create({
-    screen:      { flex: 1, backgroundColor: colors.bg },
-    scroll:      { padding: 20, paddingTop: 56, gap: 10 },
-    title:       { fontSize: 26, fontWeight: '900', color: colors.text, letterSpacing: -1 },
-    subtitle:    { fontSize: 14, color: colors.textMuted, fontWeight: '500', marginBottom: 8 },
-    legend:      { flexDirection: 'row', gap: 16, marginBottom: 4 },
-    legendItem:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    dot:         { width: 10, height: 10, borderRadius: 5 },
-    legendText:  { fontSize: 13, color: colors.textMuted },
-    card:        { backgroundColor: colors.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.border },
-    indicator:   { width: 5, height: 48, borderRadius: 3 },
-    info:        { flex: 1 },
-    dayName:     { fontSize: 15, fontWeight: '700', color: colors.text },
-    dateText:    { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-    right:       { alignItems: 'flex-end' },
-    calories:    { fontSize: 14, fontWeight: '700', color: colors.text },
-    statusLabel: { fontSize: 12, fontWeight: '700', marginTop: 2 },
-  });
 }
