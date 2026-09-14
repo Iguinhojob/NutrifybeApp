@@ -1,162 +1,179 @@
-// ─── Paleta base ────────────────────────────────────────────────────────────
-const palette = {
-  purple:      '#7C5CBF',
-  purpleLight: '#A78BDA',
-  purpleSoft:  '#EDE8F8',
-  purpleCard:  '#F5F0FD',
-  mint:        '#86ef98',   // auth screens bg
-  green:       '#22C55E',
-  greenSoft:   '#DCFCE7',
-  gold:        '#D4F53C',   // CTA / badge
-  lilac:       '#C8AFE8',   // decorative bubbles
-  pink:        '#F9A8D4',   // decorative bubbles
-  red:         '#EF4444',
-  redSoft:     '#FEE2E2',
-  yellow:      '#F59E0B',
-  yellowSoft:  '#FEF3C7',
-  blue:        '#3B82F6',
-};
-
-// ─── Tema claro ──────────────────────────────────────────────────────────────
+// ─── Modo Claro: Branco + Ciano ──────────────────────────────────────────────
+// Primário: ciano (#06b6d4)
+// Complementares: verde (#10b981), laranja (#f59e0b), vermelho (#ef4444)
 export const lightPremium = {
   // Fundos
-  bg:          '#F4F1F9',
-  surface:     '#FFFFFF',
-  surface2:    '#FAF8FD',
-  surface3:    '#EDE8F8',
+  bg:       '#F8FFFE',
+  surface:  '#FFFFFF',
+  surface2: '#F0FDFC',
+  surface3: '#CCFBF1',
 
   // Bordas
-  border:      '#DDD8E8',
+  border: '#B2EBF2',
 
   // Textos
-  text:        '#1A1035',
-  textMuted:   '#6B6480',
-  textDim:     '#A89FC0',
+  text:      '#0A2A2E',
+  textMuted: '#4A7A80',
+  textDim:   '#90B8BC',
 
-  // Marca / acento
-  primary:     palette.purple,
-  primaryDark: '#5B3FA0',
-  primarySoft: palette.purpleSoft,
-  purpleAccent: palette.purpleLight,
-  purpleSoft:  palette.purpleSoft,
-  purpleCard:  palette.purpleCard,
+  // Primário — ciano
+  primary:      '#06b6d4',
+  primaryDark:  '#0891b2',
+  primaryLight: '#22d3ee',
+  primarySoft:  'rgba(6,182,212,0.1)',
 
-  // CTA
-  gold:            palette.gold,
-  ctaContrastBg:   palette.gold,
-  ctaContrastText: '#1A1035',
+  // Secundário — verde (complementar)
+  secondary:     '#10b981',
+  secondaryDark: '#059669',
+  secondaryLight:'#34d399',
+  secondarySoft: 'rgba(16,185,129,0.1)',
+
+  // Acento — roxo suave (complementar)
+  accent:     '#8b5cf6',
+  accentSoft: 'rgba(139,92,246,0.1)',
 
   // Semânticas
-  success:     palette.green,
-  successSoft: palette.greenSoft,
-  danger:      palette.red,
-  dangerSoft:  palette.redSoft,
-  warning:     palette.yellow,
-  warningSoft: palette.yellowSoft,
-  green:       palette.green,
-  yellow:      palette.yellow,
-  red:         palette.red,
+  success:     '#10b981',
+  successSoft: 'rgba(16,185,129,0.12)',
+  warning:     '#f59e0b',
+  warningSoft: 'rgba(245,158,11,0.12)',
+  danger:      '#ef4444',
+  dangerSoft:  'rgba(239,68,68,0.12)',
+  green:       '#10b981',
+  yellow:      '#f59e0b',
+  red:         '#ef4444',
+  blue:        '#3b82f6',
 
-  // Nav / banners
-  navBg:          'rgba(244,241,249,0.96)',
-  bubbleMe:        palette.purpleSoft,
-  aiBannerBg:      palette.purpleSoft,
-  aiBannerBorder:  palette.lilac,
-  mintBannerBg:    '#F0FDF4',
-  mintBannerBorder: palette.green,
-  chipActiveBg:    palette.purpleSoft,
+  // Nav / Tab bar
+  navBg:          'rgba(248,255,254,0.96)',
+  tabBar:         'rgba(248,255,254,0.96)',
+  tabBarActive:   '#06b6d4',
+  tabBarInactive: '#90B8BC',
+  navActive:      '#06b6d4',
+  navInactive:    '#90B8BC',
+  navBorder:      '#B2EBF2',
+
+  // Chat / banners
+  bubbleMe:        'rgba(6,182,212,0.12)',
+  aiBannerBg:      'rgba(6,182,212,0.07)',
+  aiBannerBorder:  '#22d3ee',
+  mintBannerBg:    'rgba(16,185,129,0.07)',
+  mintBannerBorder:'#10b981',
+  chipActiveBg:    'rgba(6,182,212,0.12)',
 
   // Auth
-  authScreenBg: palette.mint,
+  authScreenBg: '#F0FDFC',
   authCardBg:   '#FFFFFF',
+  inputBg:      '#F8FFFE',
 
-  // Input
-  inputBg: '#FAF8FD',
-
-  // Compat aliases (para arquivos legados)
-  background:    '#F4F1F9',
-  card:          '#FFFFFF',
-  tabBar:        'rgba(244,241,249,0.96)',
-  tabBarActive:  '#1A1035',
-  tabBarInactive:'#A89FC0',
-  textSecondary: '#6B6480',
-  white:         '#FFFFFF',
-  secondary:     palette.purpleLight,
-  primaryLight:  palette.purpleSoft,
-  primaryDarkColor: '#5B3FA0',
-
-  // icon (para collapsible legado)
-  icon: '#6B6480',
+  // Compat aliases
+  background:       '#F8FFFE',
+  card:             '#FFFFFF',
+  purpleSoft:       'rgba(139,92,246,0.1)',
+  purpleAccent:     '#8b5cf6',
+  purpleCard:       'rgba(139,92,246,0.06)',
+  ctaContrastBg:    '#06b6d4',
+  ctaContrastText:  '#FFFFFF',
+  gold:             '#f59e0b',
+  textSecondary:    '#4A7A80',
+  white:            '#FFFFFF',
+  primaryLight:     'rgba(6,182,212,0.1)',
+  primaryDarkColor: '#0891b2',
+  icon:             '#4A7A80',
 };
 
-// ─── Tema escuro ─────────────────────────────────────────────────────────────
+// ─── Modo Escuro: Preto + Roxo ───────────────────────────────────────────────
+// Primário: roxo (#8b5cf6)
+// Complementares: ciano (#22d3ee), verde (#34d399), laranja (#f59e0b)
 export const darkPremium = {
-  bg:          '#0F0C1A',
-  surface:     '#1C1730',
-  surface2:    '#251F3D',
-  surface3:    '#2E2748',
+  // Fundos
+  bg:       '#0A0A0F',
+  surface:  '#13111C',
+  surface2: '#1C1830',
+  surface3: '#251F3D',
 
-  border:      '#3D3560',
+  // Bordas
+  border: '#2D2845',
 
-  text:        '#F0ECFF',
-  textMuted:   '#B8B0D0',
-  textDim:     '#7A7295',
+  // Textos
+  text:      '#F0ECFF',
+  textMuted: '#9B8FC0',
+  textDim:   '#5A5278',
 
-  primary:     '#9B7FD4',
-  primaryDark: '#7C5CBF',
-  primarySoft: '#2E2748',
-  purpleAccent: '#C4A8F0',
-  purpleSoft:  '#2E2748',
-  purpleCard:  '#251F3D',
+  // Primário — roxo
+  primary:      '#8b5cf6',
+  primaryDark:  '#7c3aed',
+  primaryLight: '#a78bfa',
+  primarySoft:  'rgba(139,92,246,0.15)',
 
-  gold:            palette.gold,
-  ctaContrastBg:   palette.gold,
-  ctaContrastText: '#0F0C1A',
+  // Secundário — ciano (complementar)
+  secondary:     '#22d3ee',
+  secondaryDark: '#06b6d4',
+  secondaryLight:'#67e8f9',
+  secondarySoft: 'rgba(34,211,238,0.12)',
 
-  success:     '#34D399',
-  successSoft: '#064E3B',
-  danger:      '#F87171',
-  dangerSoft:  '#450A0A',
-  warning:     '#FBBF24',
-  warningSoft: '#451A03',
-  green:       '#34D399',
-  yellow:      '#FBBF24',
-  red:         '#F87171',
+  // Acento — verde (complementar)
+  accent:     '#34d399',
+  accentSoft: 'rgba(52,211,153,0.12)',
 
-  navBg:          'rgba(15,12,26,0.97)',
-  bubbleMe:        '#2E2748',
-  aiBannerBg:      '#2E2748',
-  aiBannerBorder:  '#7A7295',
-  mintBannerBg:    '#064E3B',
-  mintBannerBorder: '#34D399',
-  chipActiveBg:    '#2E2748',
+  // Semânticas
+  success:     '#34d399',
+  successSoft: 'rgba(52,211,153,0.15)',
+  warning:     '#fbbf24',
+  warningSoft: 'rgba(251,191,36,0.15)',
+  danger:      '#f87171',
+  dangerSoft:  'rgba(248,113,113,0.15)',
+  green:       '#34d399',
+  yellow:      '#fbbf24',
+  red:         '#f87171',
+  blue:        '#60a5fa',
 
-  authScreenBg: '#0F0C1A',
-  authCardBg:   '#1C1730',
-  inputBg:      '#251F3D',
+  // Nav / Tab bar
+  navBg:          'rgba(10,10,15,0.97)',
+  tabBar:         'rgba(10,10,15,0.97)',
+  tabBarActive:   '#a78bfa',
+  tabBarInactive: '#3D3A52',
+  navActive:      '#a78bfa',
+  navInactive:    '#3D3A52',
+  navBorder:      '#1E1B2E',
 
-  background:    '#0F0C1A',
-  card:          '#1C1730',
-  tabBar:        'rgba(15,12,26,0.97)',
-  tabBarActive:  '#F0ECFF',
-  tabBarInactive:'#7A7295',
-  textSecondary: '#B8B0D0',
-  white:         '#F0ECFF',
-  secondary:     '#C4A8F0',
-  primaryLight:  '#2E2748',
-  primaryDarkColor: '#7C5CBF',
+  // Chat / banners
+  bubbleMe:        'rgba(139,92,246,0.18)',
+  aiBannerBg:      'rgba(139,92,246,0.1)',
+  aiBannerBorder:  '#5A5278',
+  mintBannerBg:    'rgba(52,211,153,0.1)',
+  mintBannerBorder:'#34d399',
+  chipActiveBg:    'rgba(139,92,246,0.18)',
 
-  icon: '#B8B0D0',
+  // Auth
+  authScreenBg: '#0A0A0F',
+  authCardBg:   '#13111C',
+  inputBg:      '#1C1830',
+
+  // Compat aliases
+  background:       '#0A0A0F',
+  card:             '#13111C',
+  purpleSoft:       'rgba(139,92,246,0.15)',
+  purpleAccent:     '#a78bfa',
+  purpleCard:       'rgba(139,92,246,0.08)',
+  ctaContrastBg:    '#8b5cf6',
+  ctaContrastText:  '#FFFFFF',
+  gold:             '#fbbf24',
+  textSecondary:    '#9B8FC0',
+  white:            '#F0ECFF',
+  primaryLight:     'rgba(139,92,246,0.15)',
+  primaryDarkColor: '#7c3aed',
+  icon:             '#9B8FC0',
 };
 
-// ─── Paleta editorial (telas de auth) ────────────────────────────────────────
+// ─── Paleta editorial (auth screens legadas) ─────────────────────────────────
 export const editorialPalette = {
-  mint:    palette.mint,
-  text:    '#1A1035',
+  mint:    '#CCFBF1',
+  text:    '#0A2A2E',
   surface: '#FFFFFF',
-  lilac:   palette.lilac,
-  pink:    palette.pink,
-  border:  '#DDD8E8',
+  lilac:   '#c4b5fd',
+  pink:    '#f9a8d4',
+  border:  '#B2EBF2',
 };
 
 // ─── Exports de compatibilidade ──────────────────────────────────────────────

@@ -28,7 +28,7 @@ function CalRing({ eaten, goal, C }: { eaten: number; goal: number; C: any }) {
       {/* Anel externo (fundo) */}
       <View style={[r.ring, { borderColor: C.primaryLight }]}>
         {/* Preenchimento simulado com borda colorida no topo */}
-        <View style={[r.ringFill, { borderTopColor: C.primary, borderRightColor: pct > 0.25 ? C.primary : C.primaryLight, borderBottomColor: pct > 0.5 ? C.primary : C.primaryLight, borderLeftColor: pct > 0.75 ? C.primary : C.primaryLight }]} />
+        <View style={[r.ringFill, { borderTopColor: C.primary, borderRightColor: pct > 0.25 ? C.primary : C.primarySoft, borderBottomColor: pct > 0.5 ? C.primary : C.primarySoft, borderLeftColor: pct > 0.75 ? C.primary : C.primarySoft }]} />
         <View style={[r.inner, { backgroundColor: C.surface }]}>
           <Text style={[r.eaten, { color: C.text }]}>{eaten}</Text>
           <Text style={[r.unit, { color: C.textMuted }]}>kcal</Text>
@@ -42,7 +42,7 @@ function CalRing({ eaten, goal, C }: { eaten: number; goal: number; C: any }) {
         </View>
         <View style={[r.statDivider, { backgroundColor: C.border }]} />
         <View style={r.statItem}>
-          <Text style={[r.statVal, { color: remaining > 0 ? C.orange : C.primary }]}>{Math.abs(remaining)}</Text>
+          <Text style={[r.statVal, { color: remaining > 0 ? C.warning : C.primary }]}>{Math.abs(remaining)}</Text>
           <Text style={[r.statLbl, { color: C.textMuted }]}>{remaining > 0 ? 'Restam' : 'Excesso'}</Text>
         </View>
       </View>
@@ -51,7 +51,7 @@ function CalRing({ eaten, goal, C }: { eaten: number; goal: number; C: any }) {
 }
 
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, notificacoes } = useAuth();
   const { colors: C } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const today = new Date(), weekDays = getWeekDays();
@@ -59,6 +59,7 @@ export default function HomeScreen() {
   const [selectedDay, setSelectedDay] = useState(today.getDay());
   const [mealModal, setMealModal]     = useState(false);
   const [meals, setMeals]             = useState<Record<string, string>>({});
+  const unread = notificacoes?.filter(n => !n.lida).length ?? 0;
 
   const MACROS = [
     { label: 'Proteína', eaten: 98,  goal: 140, color: '#3B82F6', bg: '#EFF6FF' },
@@ -76,9 +77,15 @@ export default function HomeScreen() {
             <Text style={[s.greeting, { color: C.text }]} numberOfLines={1}>Olá, {firstName} 👋</Text>
             <Text style={[s.date, { color: C.textMuted }]}>{today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={[s.avatar, { backgroundColor: C.primary }]}>
-            <Text style={s.avatarLetter}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => router.push('/notifications')} style={[s.avatar, { backgroundColor: C.primarySoft }]}>
+              <Ionicons name="notifications-outline" size={20} color={C.primary} />
+              {unread > 0 && <View style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: C.danger }} />}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={[s.avatar, { backgroundColor: C.primary }]}>
+              <Text style={s.avatarLetter}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Card calorias com anel */}
@@ -136,7 +143,7 @@ export default function HomeScreen() {
             { icon: 'water-outline'               as const, label: 'Água',     route: '/(tabs)/water'    },
             { icon: 'body-outline'                as const, label: 'IMC',      route: '/(tabs)/bmi'      },
             { icon: 'stats-chart-outline'         as const, label: 'Evolução', route: '/(tabs)/trends'   },
-            { icon: 'chatbubble-ellipses-outline' as const, label: 'NutrIA',   route: '/(tabs)/messages' },
+            { icon: 'fitness-outline'             as const, label: 'Medidas',  route: '/nutri/tracking'  },
           ].map(item => (
             <TouchableOpacity key={item.label} style={[s.shortcut, { backgroundColor: C.surface }]} onPress={() => router.push(item.route as any)}>
               <View style={[s.shortcutIcon, { backgroundColor: C.surface2 }]}>

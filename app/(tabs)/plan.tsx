@@ -1,7 +1,8 @@
+import { useAuth } from '@/context/auth';
 import { usePremiumTheme } from '@/context/theme';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
@@ -21,7 +22,148 @@ const ORIGIN: Record<string, { color: string; bg: string }> = {
   Pendente:      { color: '#F97316', bg: '#FFF7ED' },
 };
 
+// ── Tela Dieta Nutri (vínculo ativo) ─────────────────────────────────────────
+function DietaNutriScreen() {
+  const { colors: C } = usePremiumTheme();
+  const { topPad } = useAppLayout();
+  const { vinculo, planos, observacoes, encerrarVinculo, adicionarPlano } = useAuth();
+  const nutri = vinculo?.nutricionista;
+  const planoAtual = planos[0];
+  const [encerrarModal, setEncerrarModal] = useState(false);
+
+  const handleEncerrar = () => {
+    encerrarVinculo();
+    setEncerrarModal(false);
+    router.push('/nutri/review');
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: topPad, gap: 14 }} showsVerticalScrollIndicator={false}>
+
+        {/* Card do nutricionista */}
+        <View style={{ backgroundColor: C.primary, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 28 }}>{nutri?.avatar}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>{nutri?.name}</Text>
+            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>{nutri?.specialty}</Text>
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>{nutri?.crn}</Text>
+          </View>
+          <View style={{ alignItems: 'center', gap: 3 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Ionicons name="star" size={13} color="#fbbf24" />
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>{nutri?.rating}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#4ade80' }} />
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>Ativo</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Plano atual */}
+        <View style={{ backgroundColor: C.surface, borderRadius: 20, padding: 18, gap: 12, borderWidth: 1, borderColor: C.border }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: C.text }}>Plano atual</Text>
+            <TouchableOpacity onPress={() => router.push('/nutri/plan-history')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: C.primary }}>Histórico</Text>
+              <Ionicons name="chevron-forward" size={13} color={C.primary} />
+            </TouchableOpacity>
+          </View>
+          {planoAtual ? (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: C.primarySoft }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary }}>
+                    {planoAtual.origem === 'nutricionista' ? '👩⚕️ Nutricionista' : '👤 Você'}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: C.textDim }}>{planoAtual.data}</Text>
+              </View>
+              {planoAtual.conteudo.split('\n').map((linha, i) => (
+                <View key={i} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary, marginTop: 7 }} />
+                  <Text style={{ fontSize: 14, color: C.textMuted, flex: 1, lineHeight: 21 }}>{linha}</Text>
+                </View>
+              ))}
+            </>
+          ) : (
+            <Text style={{ fontSize: 14, color: C.textMuted }}>Nenhum plano prescrito ainda.</Text>
+          )}
+        </View>
+
+        {/* Observações */}
+        {observacoes.length > 0 && (
+          <View style={{ backgroundColor: C.surface, borderRadius: 20, padding: 18, gap: 12, borderWidth: 1, borderColor: C.border }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: C.text }}>Observações do nutricionista</Text>
+            {observacoes.map((obs, i) => (
+              <View key={obs.id} style={{ gap: 6, ...(i > 0 ? { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 12 } : {}) }}>
+                <Text style={{ fontSize: 11, color: C.textDim }}>{obs.data}</Text>
+                <Text style={{ fontSize: 14, color: C.textMuted, lineHeight: 21 }}>{obs.texto}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Atalhos */}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, padding: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border }}
+            onPress={() => router.push('/nutri/tracking')}
+          >
+            <Ionicons name="fitness-outline" size={16} color={C.primary} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>Registrar medidas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, padding: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border }}
+            onPress={() => router.push('/nutri/plan-history')}
+          >
+            <Ionicons name="time-outline" size={16} color={C.secondary} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>Histórico</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Encerrar */}
+        <TouchableOpacity
+          style={{ borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1.5, borderColor: C.danger + '60', backgroundColor: C.dangerSoft }}
+          onPress={() => setEncerrarModal(true)}
+        >
+          <Text style={{ fontSize: 14, fontWeight: '700', color: C.danger }}>Encerrar acompanhamento</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      {/* Modal encerrar */}
+      <Modal visible={encerrarModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: C.surface, borderRadius: 24, padding: 24, width: '100%', gap: 14 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, textAlign: 'center' }}>Encerrar acompanhamento?</Text>
+            <Text style={{ fontSize: 14, color: C.textMuted, textAlign: 'center', lineHeight: 20 }}>
+              Você poderá avaliar o nutricionista após o encerramento. O histórico será preservado.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: C.border, alignItems: 'center' }} onPress={() => setEncerrarModal(false)}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 14, borderRadius: 14, backgroundColor: C.danger, alignItems: 'center' }} onPress={handleEncerrar}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Encerrar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+// ── Tela Plano padrão (sem vínculo) ──────────────────────────────────────────
 export default function PlanScreen() {
+  const { vinculo } = useAuth();
+  if (vinculo?.status === 'ativo') return <DietaNutriScreen />;
+
   const { colors: C } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
