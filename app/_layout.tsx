@@ -9,11 +9,14 @@ function AppStack() {
     <>
       <Stack screenOptions={{ headerShown: false, animation: 'fade', animationDuration: 200 }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="auth/welcome" />
         <Stack.Screen name="auth/login" />
         <Stack.Screen name="auth/register" />
         <Stack.Screen name="auth/about-you" />
+        <Stack.Screen name="auth/forgot-password" />
         <Stack.Screen name="auth/success" />
         <Stack.Screen name="auth/setup" />
+        <Stack.Screen name="auth/nutri-code" />
         <Stack.Screen name="auth/recommendation" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="institutional/about"    options={{ headerShown: true, title: 'Sobre Nós',               headerTintColor: colors.primary, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />

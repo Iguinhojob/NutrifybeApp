@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState } from 'react';
+import { PacientesAPI, NutricionistasAPI, SolicitacoesAPI } from '@/services/api';
+import type { Paciente, Nutricionista } from '@/services/api';
+
+// ── Tipos do contexto ─────────────────────────────────────────────────────────
 
 export type User = {
+  id: number;
   name: string;
   email: string;
   weight: string;
@@ -8,189 +13,266 @@ export type User = {
   goal: string;
   targetWeight?: string;
   waterGoal?: string;
-  setupDone?: boolean;
+  birthDate?: string;
+  sexo?: string;
+  activityLevel?: string;
+  restrictions?: string;
+  origin?: string;
+  nutriCode?: string;
+  nutricionistaId?: number | null;
+  prescricaoSemanal?: string | null;
+  calendario?: string | null;
 };
 
-export type Nutricionista = {
-  id: string;
-  name: string;
-  specialty: string;
-  crn: string;
-  rating: number;
-  patients: number;
-  online: boolean;
-  avatar: string;
-  bio: string;
-};
-
-export type VinculoStatus = 'pendente' | 'ativo' | 'encerrado';
+export type VinculoStatus = 'pendente' | 'ativo' | 'sem_vinculo';
 
 export type Vinculo = {
   nutricionista: Nutricionista;
   status: VinculoStatus;
-  dataInicio: string;
-  dataUltimaRevisao: string;
-};
-
-export type PlanoVersao = {
-  id: string;
-  conteudo: string;
-  origem: 'usuario' | 'nutricionista';
-  data: string;
-};
-
-export type Observacao = {
-  id: string;
-  texto: string;
-  data: string;
 };
 
 export type Notificacao = {
   id: string;
-  tipo: 'plano_atualizado' | 'observacao' | 'vinculo_aceito' | 'vinculo_recusado' | 'acompanhamento_encerrado';
+  tipo: 'plano_atualizado' | 'observacao' | 'vinculo_aceito' | 'vinculo_recusado' | 'geral';
   titulo: string;
   descricao: string;
   data: string;
   lida: boolean;
 };
 
-export type Avaliacao = {
-  nutriId: string;
-  nota: number;
-  comentario: string;
-  data: string;
-};
-
 type AuthContextType = {
   user: User | null;
   isAuthenticated: boolean;
   vinculo: Vinculo | null;
-  planos: PlanoVersao[];
-  observacoes: Observacao[];
   notificacoes: Notificacao[];
-  avaliacoes: Avaliacao[];
-  login: (email: string, password: string) => boolean;
-  register: (data: User & { password: string }) => void;
+  loading: boolean;
+  error: string | null;
+  login: (email: string, senha: string) => Promise<boolean>;
+  register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
-  solicitarVinculo: (nutri: Nutricionista) => void;
-  encerrarVinculo: () => void;
-  adicionarPlano: (conteudo: string, origem: 'usuario' | 'nutricionista') => void;
+  solicitarVinculo: (crn: string) => Promise<{ success: boolean; error?: string }>;
   marcarNotificacaoLida: (id: string) => void;
-  avaliarNutricionista: (nutriId: string, nota: number, comentario: string) => void;
+  clearError: () => void;
+};
+
+export type RegisterData = {
+  name: string;
+  email: string;
+  password: string;
+  birthDate?: string;
+  sexo?: string;
+  weight: string;
+  height: string;
+  targetWeight: string;
+  waterGoal: string;
+  goal: string;
+  activityLevel?: string;
+  restrictions?: string;
+  origin?: string;
 };
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-const MOCK_PLANOS: PlanoVersao[] = [
-  { id: '1', conteudo: 'Café da manhã: Aveia com frutas\nAlmoço: Arroz, feijão, frango grelhado\nLanche: Iogurte grego\nJantar: Salmão com legumes', origem: 'nutricionista', data: '10/07/2025 09:00' },
-  { id: '2', conteudo: 'Café da manhã: Ovos mexidos\nAlmoço: Macarrão integral com atum\nLanche: Banana com pasta de amendoim\nJantar: Sopa de legumes', origem: 'usuario', data: '05/07/2025 14:30' },
-];
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const MOCK_OBSERVACOES: Observacao[] = [
-  { id: '1', texto: 'Parabéns pela consistência! Continue mantendo a hidratação em dia. Recomendo aumentar a ingestão de proteínas no café da manhã para melhorar a saciedade.', data: '10/07/2025' },
-  { id: '2', texto: 'Notei que você está abaixo da meta calórica nos últimos dias. Tente adicionar um lanche da tarde mais calórico.', data: '07/07/2025' },
-];
+function pacienteToUser(p: Paciente): User {
+  return {
+    id: p.id!,
+    name: p.nome,
+    email: p.email,
+    weight: String(p.peso),
+    height: String(p.altura),
+    goal: p.objetivo,
+    nutricionistaId: p.nutricionistaId,
+    prescricaoSemanal: p.prescricaoSemanal,
+    calendario: p.calendario,
+  };
+}
 
-const MOCK_NOTIFICACOES: Notificacao[] = [
-  { id: '1', tipo: 'plano_atualizado',  titulo: 'Plano atualizado',       descricao: 'Dra. Ana Beatriz atualizou seu plano alimentar.',         data: '10/07/2025 09:00', lida: false },
-  { id: '2', tipo: 'observacao',        titulo: 'Nova observação',        descricao: 'Dra. Ana Beatriz deixou um comentário para você.',         data: '10/07/2025 09:05', lida: false },
-  { id: '3', tipo: 'vinculo_aceito',    titulo: 'Vínculo aceito!',        descricao: 'Dra. Ana Beatriz aceitou seu pedido de acompanhamento.',   data: '01/07/2025 10:00', lida: true  },
-];
+// ── Provider ──────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]                   = useState<User | null>(null);
-  const [vinculo, setVinculo]             = useState<Vinculo | null>(null);
-  const [planos, setPlanos]               = useState<PlanoVersao[]>([]);
-  const [observacoes, setObservacoes]     = useState<Observacao[]>([]);
-  const [notificacoes, setNotificacoes]   = useState<Notificacao[]>([]);
-  const [avaliacoes, setAvaliacoes]       = useState<Avaliacao[]>([]);
+  const [user, setUser]               = useState<User | null>(null);
+  const [vinculo, setVinculo]         = useState<Vinculo | null>(null);
+  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState<string | null>(null);
 
-  const login = (email: string, password: string) => {
-    if (email && password.length >= 6) {
-      setUser({ name: 'Usuário', email, weight: '70', height: '170', goal: 'Perder peso', targetWeight: '65', waterGoal: '2', setupDone: true });
-      // Mock: simula vínculo ativo ao logar
-      setVinculo({
-        nutricionista: { id: '1', name: 'Dra. Ana Beatriz', specialty: 'Nutrição Esportiva', crn: 'CRN-3 12345', rating: 4.9, patients: 128, online: true, avatar: '👩‍⚕️', bio: 'Especialista em nutrição esportiva e emagrecimento. 8 anos de experiência.' },
-        status: 'ativo',
-        dataInicio: '01/07/2025',
-        dataUltimaRevisao: '10/07/2025',
-      });
-      setPlanos(MOCK_PLANOS);
-      setObservacoes(MOCK_OBSERVACOES);
-      setNotificacoes(MOCK_NOTIFICACOES);
+  // ── Login ──────────────────────────────────────────────────────────────────
+  const login = async (email: string, senha: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const paciente = await PacientesAPI.login(email, senha);
+      if (!paciente) {
+        setError('Email ou senha inválidos.');
+        return false;
+      }
+
+      const u = pacienteToUser(paciente);
+      setUser(u);
+
+      // Carrega vínculo com nutricionista se existir
+      if (paciente.nutricionistaId) {
+        try {
+          const nutri = await NutricionistasAPI.getById(paciente.nutricionistaId);
+          const status: VinculoStatus = paciente.status === 'accepted' ? 'ativo' : 'pendente';
+          setVinculo({ nutricionista: nutri, status });
+
+          if (paciente.status === 'accepted') {
+            addNotificacao('vinculo_aceito', 'Nutricionista vinculado', `Você está sendo acompanhado por ${nutri.nome}.`);
+          }
+        } catch {
+          // Nutricionista não encontrado, ignora
+        }
+      }
+
       return true;
+    } catch (e: any) {
+      setError(e.message || 'Erro ao fazer login.');
+      return false;
+    } finally {
+      setLoading(false);
     }
-    return false;
   };
 
-  const register = (data: User & { password: string }) => {
-    const { password, ...userData } = data;
-    setUser({ ...userData, setupDone: false });
-    setVinculo(null);
-    setPlanos([]);
-    setObservacoes([]);
-    setNotificacoes([]);
+  // ── Registro ───────────────────────────────────────────────────────────────
+  const register = async (data: RegisterData): Promise<{ success: boolean; error?: string }> => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Verifica se email já existe
+      const existing = await PacientesAPI.findByEmail(data.email);
+      if (existing) {
+        return { success: false, error: 'Este email já está cadastrado.' };
+      }
+
+      const novoPaciente: Omit<Paciente, 'id' | 'dataCriacao'> = {
+        nome: data.name,
+        email: data.email,
+        senha: data.password,
+        idade: calcularIdade(data.birthDate),
+        peso: parseFloat(data.weight) || 0,
+        altura: parseFloat(data.height) || 0,
+        objetivo: data.goal || 'Manter peso',
+        condicaoSaude: data.restrictions || 'Nenhuma',
+        nutricionistaId: null,
+        status: 'pending',
+        ativo: 1,
+      };
+
+      await PacientesAPI.create(novoPaciente);
+
+      // Busca o paciente recém-criado para pegar o ID
+      const criado = await PacientesAPI.findByEmail(data.email);
+      if (!criado) return { success: false, error: 'Erro ao criar conta.' };
+
+      setUser({
+        id: criado.id!,
+        name: data.name,
+        email: data.email,
+        weight: data.weight,
+        height: data.height,
+        goal: data.goal,
+        targetWeight: data.targetWeight,
+        waterGoal: data.waterGoal,
+        birthDate: data.birthDate,
+        sexo: data.sexo,
+        activityLevel: data.activityLevel,
+        restrictions: data.restrictions,
+        origin: data.origin,
+        nutricionistaId: null,
+      });
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Erro ao criar conta.' };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    setVinculo(null);
-    setPlanos([]);
-    setObservacoes([]);
-    setNotificacoes([]);
+  // ── Solicitar vínculo por CRN ──────────────────────────────────────────────
+  // Lógica: paciente informa o CRN do nutricionista →
+  // sistema busca o nutri pelo CRN → cria solicitação pendente →
+  // atualiza o paciente com nutricionistaId e status "pending"
+  const solicitarVinculo = async (crn: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Usuário não autenticado.' };
+    setLoading(true);
+    try {
+      const nutri = await NutricionistasAPI.findByCrn(crn.trim().toUpperCase());
+      if (!nutri) {
+        return { success: false, error: 'Nutricionista não encontrado. Verifique o CRN.' };
+      }
+
+      // Cria solicitação pendente
+      await SolicitacoesAPI.create({
+        nome: user.name,
+        email: user.email,
+        idade: calcularIdade(user.birthDate),
+        peso: parseFloat(user.weight) || 0,
+        altura: parseFloat(user.height) || 0,
+        objetivo: user.goal,
+        condicaoSaude: user.restrictions || 'Nenhuma',
+        nutricionistaId: nutri.id,
+      });
+
+      // Atualiza o paciente no backend com o nutricionistaId
+      await PacientesAPI.update(user.id, {
+        nutricionistaId: nutri.id,
+        status: 'pending',
+      });
+
+      setUser(prev => prev ? { ...prev, nutricionistaId: nutri.id } : prev);
+      setVinculo({ nutricionista: nutri, status: 'pendente' });
+
+      addNotificacao('geral', 'Solicitação enviada', `Sua solicitação foi enviada para ${nutri.nome}. Aguarde a confirmação.`);
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Erro ao solicitar vínculo.' };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateUser = (data: Partial<User>) => {
-    if (user) setUser({ ...user, ...data });
-  };
-
-  const solicitarVinculo = (nutri: Nutricionista) => {
-    setVinculo({ nutricionista: nutri, status: 'pendente', dataInicio: '', dataUltimaRevisao: '' });
+  // ── Helpers internos ───────────────────────────────────────────────────────
+  const addNotificacao = (tipo: Notificacao['tipo'], titulo: string, descricao: string) => {
     setNotificacoes(prev => [{
       id: Date.now().toString(),
-      tipo: 'vinculo_aceito',
-      titulo: 'Solicitação enviada',
-      descricao: `Sua solicitação foi enviada para ${nutri.name}.`,
+      tipo,
+      titulo,
+      descricao,
       data: new Date().toLocaleDateString('pt-BR'),
       lida: false,
     }, ...prev]);
   };
 
-  const encerrarVinculo = () => {
-    if (vinculo) {
-      setVinculo({ ...vinculo, status: 'encerrado' });
-      setNotificacoes(prev => [{
-        id: Date.now().toString(),
-        tipo: 'acompanhamento_encerrado',
-        titulo: 'Acompanhamento encerrado',
-        descricao: `Seu acompanhamento com ${vinculo.nutricionista.name} foi encerrado.`,
-        data: new Date().toLocaleDateString('pt-BR'),
-        lida: false,
-      }, ...prev]);
-    }
+  const logout = () => {
+    setUser(null);
+    setVinculo(null);
+    setNotificacoes([]);
+    setError(null);
   };
 
-  const adicionarPlano = (conteudo: string, origem: 'usuario' | 'nutricionista') => {
-    const novo: PlanoVersao = { id: Date.now().toString(), conteudo, origem, data: new Date().toLocaleString('pt-BR') };
-    setPlanos(prev => [novo, ...prev]);
+  const updateUser = (data: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...data } : prev);
   };
 
   const marcarNotificacaoLida = (id: string) => {
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
   };
 
-  const avaliarNutricionista = (nutriId: string, nota: number, comentario: string) => {
-    setAvaliacoes(prev => [...prev, { nutriId, nota, comentario, data: new Date().toLocaleDateString('pt-BR') }]);
-  };
+  const clearError = () => setError(null);
 
   return (
     <AuthContext.Provider value={{
       user, isAuthenticated: !!user,
-      vinculo, planos, observacoes, notificacoes, avaliacoes,
+      vinculo, notificacoes,
+      loading, error,
       login, register, logout, updateUser,
-      solicitarVinculo, encerrarVinculo, adicionarPlano,
-      marcarNotificacaoLida, avaliarNutricionista,
+      solicitarVinculo, marcarNotificacaoLida, clearError,
     }}>
       {children}
     </AuthContext.Provider>
@@ -198,3 +280,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+
+// ── Util ──────────────────────────────────────────────────────────────────────
+function calcularIdade(birthDate?: string): number {
+  if (!birthDate) return 0;
+  // Suporta DD/MM/AAAA
+  const parts = birthDate.split('/');
+  if (parts.length === 3) {
+    const birth = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+    const diff = Date.now() - birth.getTime();
+    return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+  }
+  return 0;
+}

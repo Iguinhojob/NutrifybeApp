@@ -26,13 +26,13 @@ const ORIGIN: Record<string, { color: string; bg: string }> = {
 function DietaNutriScreen() {
   const { colors: C } = usePremiumTheme();
   const { topPad } = useAppLayout();
-  const { vinculo, planos, observacoes, encerrarVinculo, adicionarPlano } = useAuth();
+  const { vinculo } = useAuth();
   const nutri = vinculo?.nutricionista;
-  const planoAtual = planos[0];
+  const { user } = useAuth();
+  const planoAtual = user?.prescricaoSemanal ? { conteudo: user.prescricaoSemanal, origem: 'nutricionista', data: '' } : null;
   const [encerrarModal, setEncerrarModal] = useState(false);
 
   const handleEncerrar = () => {
-    encerrarVinculo();
     setEncerrarModal(false);
     router.push('/nutri/review');
   };
@@ -44,17 +44,17 @@ function DietaNutriScreen() {
         {/* Card do nutricionista */}
         <View style={{ backgroundColor: C.primary, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 28 }}>{nutri?.avatar}</Text>
+            <Text style={{ fontSize: 28 }}>👩⚕️</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>{nutri?.name}</Text>
-            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>{nutri?.specialty}</Text>
-            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>{nutri?.crn}</Text>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>{nutri?.nome}</Text>
+            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>{nutri?.especialidade || 'Nutricionista'}</Text>
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>CRN {nutri?.crn}</Text>
           </View>
           <View style={{ alignItems: 'center', gap: 3 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <Ionicons name="star" size={13} color="#fbbf24" />
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>{nutri?.rating}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>5.0</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#4ade80' }} />
@@ -95,15 +95,12 @@ function DietaNutriScreen() {
         </View>
 
         {/* Observações */}
-        {observacoes.length > 0 && (
+        {vinculo?.nutricionista && (
           <View style={{ backgroundColor: C.surface, borderRadius: 20, padding: 18, gap: 12, borderWidth: 1, borderColor: C.border }}>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: C.text }}>Observações do nutricionista</Text>
-            {observacoes.map((obs, i) => (
-              <View key={obs.id} style={{ gap: 6, ...(i > 0 ? { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 12 } : {}) }}>
-                <Text style={{ fontSize: 11, color: C.textDim }}>{obs.data}</Text>
-                <Text style={{ fontSize: 14, color: C.textMuted, lineHeight: 21 }}>{obs.texto}</Text>
-              </View>
-            ))}
+            <Text style={{ fontSize: 15, fontWeight: '800', color: C.text }}>Prescrição semanal</Text>
+            <Text style={{ fontSize: 14, color: C.textMuted, lineHeight: 21 }}>
+              {vinculo.nutricionista.descricao || 'Nenhuma observação ainda.'}
+            </Text>
           </View>
         )}
 
