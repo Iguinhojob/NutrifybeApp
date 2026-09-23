@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useRef, useState } from 'react';
+import { DEMO_MODE, DEMO_NUTRITIONIST, findNutritionist } from '@/services/demo';
+import { ageFromBirthDate, isValidEmail, isValidPassword, measurementError } from '@/utils/onboarding';
 import { PacientesAPI, NutricionistasAPI, SolicitacoesAPI } from '@/services/api';
 import type { Paciente, Nutricionista } from '@/services/api';
 
@@ -19,6 +21,9 @@ export type User = {
   restrictions?: string;
   origin?: string;
   nutriCode?: string;
+  motivation?: string;
+  healthNote?: string;
+  followupPreference?: string;
   nutricionistaId?: number | null;
   prescricaoSemanal?: string | null;
   calendario?: string | null;
@@ -70,6 +75,11 @@ export type RegisterData = {
   activityLevel?: string;
   restrictions?: string;
   origin?: string;
+  motivation?: string;
+  healthNote?: string;
+  followupPreference?: string;
+  nutriCode?: string;
+  nutricionistaId?: number;
 };
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -98,12 +108,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  // Demo profiles live only in memory and never include passwords.
+  const demoProfiles = useRef(new Map<string, User>());
 
   // ── Login ──────────────────────────────────────────────────────────────────
   const login = async (email: string, senha: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
     try {
+      if (DEMO_MODE) {
+        const normalized = email.trim().toLowerCase();
+        const u = demoProfiles.current.get(normalized) ?? {
+          id: 1, name: 'Visitante', email: normalized, weight: '70', height: '170', goal: 'Melhorar saúde',
+          activityLevel: 'Leve', waterGoal: '2', nutricionistaId: null,
+        };
+        setUser(u);
+        setVinculo(u.nutricionistaId ? { nutricionista: DEMO_NUTRITIONIST, status: 'ativo' } : null);
+        return true;
+      }
       const paciente = await PacientesAPI.login(email, senha);
       if (!paciente) {
         setError('Email ou senha inválidos.');
@@ -139,9 +161,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ── Registro ───────────────────────────────────────────────────────────────
   const register = async (data: RegisterData): Promise<{ success: boolean; error?: string }> => {
+    if (data.name.trim().length < 2 || !isValidEmail(data.email)) return { success: false, error: 'Confira seu nome e e-mail.' };
+    if (!isValidPassword(data.password)) return { success: false, error: 'Sua senha ainda não atende aos requisitos.' };
+    if (!data.birthDate || ageFromBirthDate(data.birthDate) === null || !data.sexo || !data.goal || !data.activityLevel) return { success: false, error: 'Complete os dados do seu perfil antes de continuar.' };
+    const invalidMeasures = measurementError(data.weight, data.height, data.targetWeight, data.goal);
+    if (invalidMeasures) return { success: false, error: invalidMeasures };
     setLoading(true);
     setError(null);
     try {
+      if (DEMO_MODE) {
+        const email = data.email.trim().toLowerCase();
+        if (demoProfiles.current.has(email)) return { success: false, error: 'Este e-mail já foi usado nesta demonstração. Entre na conta ou use outro.' };
+        const nutri = data.nutricionistaId ? await findNutritionist(data.nutriCode ?? '') : null;
+        if (data.nutricionistaId && nutri?.id !== data.nutricionistaId) return { success: false, error: 'Confira novamente o código do nutricionista.' };
+        const u: User = {
+          id: Date.now(), name: data.name.trim(), email, birthDate: data.birthDate, sexo: data.sexo,
+          weight: data.weight.replace(',', '.'), height: data.height.replace(',', '.'),
+          targetWeight: data.targetWeight.replace(',', '.'), waterGoal: data.waterGoal, goal: data.goal,
+          activityLevel: data.activityLevel, restrictions: data.restrictions, origin: data.origin,
+          motivation: data.motivation, healthNote: data.healthNote, followupPreference: data.followupPreference,
+          nutriCode: data.nutriCode, nutricionistaId: nutri?.id ?? null,
+        };
+        demoProfiles.current.set(email, u);
+        setUser(u);
+        setVinculo(nutri ? { nutricionista: nutri, status: 'ativo' } : null);
+        if (nutri) addNotificacao('vinculo_aceito', 'Vínculo de demonstração', `Seu perfil está conectado a ${nutri.nome} nesta prévia.`);
+        return { success: true };
+      }
       // Verifica se email já existe
       const existing = await PacientesAPI.findByEmail(data.email);
       if (existing) {
@@ -201,6 +247,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return { success: false, error: 'Usuário não autenticado.' };
     setLoading(true);
     try {
+      if (DEMO_MODE) {
+        const nutri = await findNutritionist(crn);
+        if (!nutri) return { success: false, error: 'Código não encontrado. Na demonstração, use 1234.' };
+        const updated = { ...user, nutricionistaId: nutri.id, nutriCode: crn };
+        setUser(updated);
+        demoProfiles.current.set(user.email.toLowerCase(), updated);
+        setVinculo({ nutricionista: nutri, status: 'ativo' });
+        return { success: true };
+      }
       const nutri = await NutricionistasAPI.findByCrn(crn.trim().toUpperCase());
       if (!nutri) {
         return { success: false, error: 'Nutricionista não encontrado. Verifique o CRN.' };
@@ -257,7 +312,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateUser = (data: Partial<User>) => {
-    setUser(prev => prev ? { ...prev, ...data } : prev);
+    if (!user) return;
+    const updated = { ...user, ...data };
+    if (DEMO_MODE) demoProfiles.current.set(updated.email.toLowerCase(), updated);
+    setUser(updated);
   };
 
   const marcarNotificacaoLida = (id: string) => {

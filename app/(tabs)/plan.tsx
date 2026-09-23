@@ -159,8 +159,10 @@ function DietaNutriScreen() {
 // ── Tela Plano padrão (sem vínculo) ──────────────────────────────────────────
 export default function PlanScreen() {
   const { vinculo } = useAuth();
-  if (vinculo?.status === 'ativo') return <DietaNutriScreen />;
+  return vinculo?.status === 'ativo' ? <DietaNutriScreen /> : <StandardPlanScreen />;
+}
 
+function StandardPlanScreen() {
   const { colors: C } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
@@ -181,6 +183,12 @@ export default function PlanScreen() {
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false}>
         <Text style={[s.title, { color: C.text }]}>Plano Alimentar</Text>
+
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Vincular nutricionista" onPress={() => router.push('/auth/nutri-code')} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, borderRadius: 18, backgroundColor: C.primarySoft, marginBottom: 18 }}>
+          <Ionicons name="person-add-outline" size={20} color={C.primary} />
+          <Text style={{ flex: 1, color: C.text, fontSize: 14, fontWeight: '600' }}>Vincular nutricionista</Text>
+          <Ionicons name="chevron-forward" size={18} color={C.primary} />
+        </TouchableOpacity>
 
         {/* Seletor de dias */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>

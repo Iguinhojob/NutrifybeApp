@@ -1,184 +1,193 @@
+import { Choice, Field, Note, OnboardingShell, TextLink } from '@/components/onboarding-ui';
+import { useAuth } from '@/context/auth';
+import { useOnboarding, type OnboardingDraft } from '@/context/onboarding';
 import { usePremiumTheme } from '@/context/theme';
-import { useAppLayout } from '@/hooks/useAppLayout';
+import { DEMO_MODE } from '@/services/demo';
+import { ageFromBirthDate, formatBirthDate, isValidEmail, isValidPassword, measurementError, passwordRules } from '@/utils/onboarding';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { type ComponentProps, useRef, useState } from 'react';
+import { Keyboard, Pressable, Text, View } from 'react-native';
 
-const SEXOS = [
-  { label: 'Masculino', icon: '♂️' },
-  { label: 'Feminino',  icon: '♀️' },
-  { label: 'Outro',     icon: '⚧️' },
+type Option = { label: string; description?: string; icon: ComponentProps<typeof Ionicons>['name'] };
+const goals: Option[] = [
+  { label: 'Perder peso', description: 'Encontrar um caminho que faça sentido para mim', icon: 'trending-down-outline' },
+  { label: 'Ganhar massa', description: 'Cuidar da alimentação junto com os treinos', icon: 'barbell-outline' },
+  { label: 'Manter peso', description: 'Ter mais constância e equilíbrio', icon: 'swap-horizontal-outline' },
+  { label: 'Melhorar saúde', description: 'Construir uma relação melhor com a alimentação', icon: 'heart-outline' },
 ];
-
-function getPasswordRules(p: string) {
-  return [
-    { label: 'Mínimo 8 caracteres',       ok: p.length >= 8 },
-    { label: 'Letra maiúscula',            ok: /[A-Z]/.test(p) },
-    { label: 'Número',                     ok: /[0-9]/.test(p) },
-    { label: 'Caractere especial (!@#$…)', ok: /[^A-Za-z0-9]/.test(p) },
-  ];
-}
-
-function formatBirthDate(raw: string) {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-}
+const activities: Option[] = [
+  { label: 'Sedentário', description: 'Passo boa parte do dia sentado e quase não me exercito', icon: 'desktop-outline' },
+  { label: 'Leve', description: 'Faço pequenas caminhadas e me movimento um pouco', icon: 'walk-outline' },
+  { label: 'Moderado', description: 'Caminho bastante ou pratico exercícios regularmente', icon: 'bicycle-outline' },
+  { label: 'Intenso', description: 'Tenho uma rotina fisicamente exigente ou treinos frequentes', icon: 'barbell-outline' },
+  { label: 'Muito intenso', description: 'Trabalho físico pesado e/ou treinos intensos frequentes', icon: 'fitness-outline' },
+];
+const sources: Option[] = [
+  { label: 'Meu nutri está aqui', description: 'Quero conectar minha conta ao profissional', icon: 'person-add-outline' },
+  { label: 'Indicação de um nutri', icon: 'medkit-outline' },
+  { label: 'Redes sociais', icon: 'phone-portrait-outline' },
+  { label: 'Amigos ou família', icon: 'people-outline' },
+  { label: 'Busca ou loja de apps', icon: 'search-outline' },
+  { label: 'Outro caminho', icon: 'compass-outline' },
+];
+const adaptive: Record<string, { title: string; options: string[] }> = {
+  'Perder peso': { title: 'O que mais desafia sua rotina?', options: ['Organizar as refeições', 'Encontrar constância', 'Entender meus hábitos'] },
+  'Ganhar massa': { title: 'Como está sua rotina de treinos?', options: ['Estou começando', 'Já treino regularmente', 'Quero retomar meus treinos'] },
+  'Manter peso': { title: 'O que você quer manter em equilíbrio?', options: ['Horários das refeições', 'Variedade no prato', 'Alimentação e movimento'] },
+  'Melhorar saúde': { title: 'Por onde você gostaria de começar?', options: ['Ter mais disposição', 'Variar minha alimentação', 'Organizar minha rotina'] },
+};
 
 export default function AboutYouScreen() {
-  const { colors: C } = usePremiumTheme();
-  const { topPad } = useAppLayout();
-  const [name, setName]           = useState('');
-  const [email, setEmail]         = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [sexo, setSexo]           = useState('');
-  const [password, setPassword]   = useState('');
-  const [showPass, setShowPass]   = useState(false);
-  const [passBlurred, setPassBlurred] = useState(false);
-
-  const rules = getPasswordRules(password);
-  const allRulesOk = rules.every(r => r.ok);
-
-  const next = () => {
-    if (!name || !email || !birthDate || !sexo || !password)
-      return Alert.alert('Erro', 'Preencha todos os campos.');
-    if (!allRulesOk)
-      return Alert.alert('Senha fraca', 'Sua senha não atende todos os requisitos de segurança.');
-    if (birthDate.length < 10)
-      return Alert.alert('Erro', 'Informe uma data de nascimento válida (DD/MM/AAAA).');
-    router.push({ pathname: '/auth/setup', params: { name, email, password, birthDate, sexo } });
+  const { draft: d, update: updateDraft, reset } = useOnboarding();
+  const { register } = useAuth();
+  const { colors: C, isDark } = usePremiumTheme();
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [accepted, setAccepted] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const update = (data: Partial<OnboardingDraft>) => { setError(''); updateDraft(data); };
+  const step = d.step;
+  const first = d.name.trim().split(' ')[0];
+  const question = adaptive[d.goal] ?? adaptive['Melhorar saúde'];
+  const accent = isDark ? C.primaryLight : C.primaryDark;
+  const go = (next: number) => { Keyboard.dismiss(); setError(''); update({ step: next }); };
+  const chooseSource = (origin: string) => {
+    update({ origin, nutritionist: null, nutriCode: '', followupPreference: origin === 'Meu nutri está aqui' ? 'existing' : 'later' });
+    setError('');
+    if (origin === 'Meu nutri está aqui') {
+      Keyboard.dismiss();
+      router.push({ pathname: '/auth/nutri-code', params: { mode: 'onboarding' } });
+    }
+  };
+  const toggleRestriction = (label: string) => {
+    if (label === 'Nenhuma') { update({ restrictions: ['Nenhuma'] }); return; }
+    const values = d.restrictions.filter(item => item !== 'Nenhuma');
+    const compatible = label === 'Vegetariana' ? values.filter(item => item !== 'Vegana') : label === 'Vegana' ? values.filter(item => item !== 'Vegetariana') : values;
+    update({ restrictions: compatible.includes(label) ? compatible.filter(item => item !== label) : [...compatible, label] });
+  };
+  const validate = () => {
+    if (step === 0 && d.name.trim().length < 2) return 'Como podemos chamar você? Escreva pelo menos 2 caracteres.';
+    if (step === 1 && ageFromBirthDate(d.birthDate) === null) return 'Confira a data de nascimento. Use DD/MM/AAAA e uma data real, no passado.';
+    if (step === 1 && !d.sexo) return 'Selecione uma opção de sexo. Você pode escolher não informar.';
+    if (step === 2 && !d.goal) return 'Escolha o objetivo que mais combina com você agora.';
+    if (step === 3 && !d.motivation) return 'Selecione a resposta que melhor descreve seu momento.';
+    if (step === 4 && !d.activityLevel) return 'Como é seu movimento no dia a dia? Selecione uma opção.';
+    if (step === 5) return measurementError(d.weight, d.height, d.targetWeight, d.goal);
+    if (step === 6 && !d.restrictions.length) return 'Selecione suas preferências ou a opção Nenhuma.';
+    if (step === 7 && !d.origin) return 'Conte por onde chegou até nós.';
+    if (step === 8 && !isValidEmail(d.email)) return 'Informe um e-mail válido, como voce@exemplo.com.';
+    if (step === 8 && !isValidPassword(password)) return 'Confira os requisitos da senha abaixo do campo.';
+    if (step === 8 && confirmation !== password) return 'As senhas não coincidem. Digite a mesma senha nos dois campos.';
+    if (step === 8 && !accepted) return 'Leia e aceite os termos e a política de privacidade para continuar.';
+    return '';
+  };
+  const next = async () => {
+    if (submitting.current) return;
+    const message = validate();
+    if (message) { setError(message); return; }
+    if (step < 8) { go(step + 1); return; }
+    submitting.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await register({
+        name: d.name.trim(), email: d.email.trim().toLowerCase(), password, birthDate: d.birthDate,
+        sexo: d.sexo, goal: d.goal, activityLevel: d.activityLevel, weight: d.weight, height: d.height,
+        targetWeight: d.targetWeight, waterGoal: '', restrictions: d.restrictions.join(', '),
+        healthNote: d.healthNote, motivation: d.motivation, origin: d.origin, followupPreference: d.followupPreference,
+        nutriCode: d.nutriCode, nutricionistaId: d.nutritionist?.id,
+      });
+      if (!result.success) { setError(result.error ?? 'Não foi possível criar seu perfil. Tente novamente.'); return; }
+      setPassword('');
+      setConfirmation('');
+      reset();
+      router.replace('/auth/success');
+    } catch {
+      setError('Não foi possível concluir agora. Suas respostas continuam aqui; tente novamente.');
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
   };
 
-  return (
-    <KeyboardAvoidingView style={[s.screen, { backgroundColor: C.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={[s.blob, { backgroundColor: C.primarySoft }]} />
-      <ScrollView
-        contentContainerStyle={[s.scroll, { paddingTop: topPad + 16 }]}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-        showsVerticalScrollIndicator={false}
-      >
-        <TouchableOpacity style={[s.backBtn, { backgroundColor: C.surface, borderColor: C.border }]} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color={C.primary} />
-        </TouchableOpacity>
+  const titles = [
+    'Vamos começar por você.',
+    `Prazer, ${first || 'vamos lá'}!`,
+    'O que te trouxe até aqui?',
+    question.title,
+    'Como é o seu dia a dia?',
+    'Um ponto de partida.',
+    'Seu prato, suas escolhas.',
+    'Como nossos caminhos se cruzaram?',
+    `Seu próximo capítulo, ${first || 'vamos lá'}.`,
+  ];
+  const subtitles = [
+    'Uma conversa rápida para conhecer seu momento. Tudo no seu ritmo.',
+    'Mais duas informações para conhecer seu perfil.',
+    'Seu objetivo pode mudar. Escolha o que importa neste momento.',
+    'Cada rotina é única. Vamos conhecer a sua um pouco melhor.',
+    'Pense no trabalho, nos deslocamentos e nos exercícios, não só na academia.',
+    'Essas informações ajudam a compor seu perfil. Não são uma avaliação de saúde.',
+    'Tem alguma preferência ou cuidado alimentar? Pode marcar mais de um.',
+    'E, se você já tem um nutricionista na NutriFybe, vamos conectar vocês.',
+    'Seu perfil está pronto. Falta criar seu acesso para começar.',
+  ];
 
-        <View style={s.progressRow}>
-          <View style={[s.progressBar, { backgroundColor: C.primary }]} />
-          <View style={[s.progressBar, { backgroundColor: C.border }]} />
-          <View style={[s.progressBar, { backgroundColor: C.border }]} />
-        </View>
-        <Text style={[s.progressLabel, { color: C.primary }]}>Passo 1 de 3 · Dados pessoais</Text>
-
-        <Text style={[s.title, { color: C.text }]}>Vamos nos conhecer! 👋</Text>
-        <Text style={[s.subtitle, { color: C.textMuted }]}>Rápido e gratuito. Sem cartão de crédito.</Text>
-
-        {[
-          { icon: 'person-outline' as const,   placeholder: 'Nome completo',                value: name,      onChange: setName,      type: 'default' as const,       cap: 'words' as const },
-          { icon: 'mail-outline' as const,     placeholder: 'Email',                        value: email,     onChange: setEmail,     type: 'email-address' as const, cap: 'none' as const  },
-          { icon: 'calendar-outline' as const, placeholder: 'Data de nascimento (DD/MM/AAAA)', value: birthDate, onChange: (v: string) => setBirthDate(formatBirthDate(v)), type: 'numeric' as const, cap: 'none' as const },
-        ].map((f, i) => (
-          <View key={i} style={[s.fieldWrap, { backgroundColor: C.surface, borderColor: C.border }]}>
-            <Ionicons name={f.icon} size={18} color={C.textMuted} style={s.fieldIcon} />
-            <TextInput
-              style={[s.input, { color: C.text }]}
-              placeholder={f.placeholder}
-              placeholderTextColor={C.textDim}
-              value={f.value}
-              onChangeText={f.onChange}
-              keyboardType={f.type}
-              autoCapitalize={f.cap}
-            />
-          </View>
-        ))}
-
-        <Text style={[s.sectionLabel, { color: C.textMuted }]}>Sexo biológico</Text>
-        <View style={s.sexoRow}>
-          {SEXOS.map(s2 => (
-            <TouchableOpacity
-              key={s2.label}
-              style={[s.sexoCard, { backgroundColor: C.surface, borderColor: sexo === s2.label ? C.primary : C.border },
-                      sexo === s2.label && { backgroundColor: C.primarySoft }]}
-              onPress={() => setSexo(s2.label)}
-              activeOpacity={0.8}
-            >
-              <Text style={s.sexoIcon}>{s2.icon}</Text>
-              <Text style={[s.sexoLabel, { color: sexo === s2.label ? C.primary : C.textMuted }]}>{s2.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={[s.fieldWrap, { backgroundColor: C.surface, borderColor: C.border }]}>
-          <Ionicons name="lock-closed-outline" size={18} color={C.textMuted} style={s.fieldIcon} />
-          <TextInput
-            style={[s.input, { flex: 1, color: C.text }]}
-            placeholder="Criar senha"
-            placeholderTextColor={C.textDim}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPass}
-            onBlur={() => setPassBlurred(true)}
-          />
-          <TouchableOpacity onPress={() => setShowPass(v => !v)} style={{ padding: 4 }}>
-            <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color={C.textDim} />
-          </TouchableOpacity>
-        </View>
-
-        {(passBlurred || password.length > 0) && (
-          <View style={[s.rulesBox, { backgroundColor: C.surface, borderColor: C.border }]}>
-            {rules.map((r, i) => (
-              <View key={i} style={s.ruleRow}>
-                <Ionicons name={r.ok ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={r.ok ? C.primary : C.textDim} />
-                <Text style={[s.ruleText, { color: r.ok ? C.primary : C.textDim }]}>{r.label}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[s.btnPrimary, { backgroundColor: C.primary, shadowColor: C.primary }]}
-          onPress={next}
-          activeOpacity={0.85}
-        >
-          <Text style={s.btnPrimaryText}>Continuar</Text>
-          <Ionicons name="arrow-forward" size={18} color="#fff" />
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push('/auth/login')} style={s.linkRow}>
-          <Text style={[s.linkText, { color: C.primary }]}>Já tenho conta</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 32 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+  return <OnboardingShell title={titles[step]} subtitle={subtitles[step]} step={step} total={9}
+    eyebrow={step < 2 ? 'VAMOS NOS CONHECER' : step < 7 ? 'UM PERFIL COM A SUA CARA' : 'QUASE LÁ'}
+    onBack={() => { if (step > 0) go(step - 1); else router.replace('/auth/welcome'); }}
+    action={step === 0 ? 'Vamos nos conhecer' : step === 8 ? 'Criar minha conta' : 'Continuar'}
+    onAction={next} busy={busy} error={error}
+    footer={step === 0 ? <TextLink label="Já tenho conta" onPress={() => router.push('/auth/login')} /> : <Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 11, paddingTop: 6 }}>Você pode voltar e ajustar suas respostas.</Text>}
+  >
+    {step === 0 && <>
+      <Field label="Como podemos chamar você?" placeholder="Seu nome" value={d.name} onChangeText={name => update({ name })} autoCapitalize="words" autoComplete="name" maxLength={80} returnKeyType="next" onSubmitEditing={next} />
+      <Note>Primeiro, seu momento. Depois, sua rotina. No final, criamos juntos um perfil que faz sentido para você.</Note>
+      {DEMO_MODE && <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 18 }}>Modo demonstração: você pode usar dados fictícios. O perfil fica apenas nesta sessão.</Text>}
+    </>}
+    {step === 1 && <>
+      <Field label="Data de nascimento" placeholder="DD/MM/AAAA" value={d.birthDate} onChangeText={value => update({ birthDate: formatBirthDate(value) })} keyboardType="number-pad" maxLength={10} />
+      <Text style={{ color: C.text, fontWeight: '600', marginTop: 4 }}>Sexo</Text>
+      {['Feminino', 'Masculino', 'Intersexo', 'Prefiro não informar'].map(label => <Choice key={label} label={label} selected={d.sexo === label} onPress={() => update({ sexo: label })} icon="person-outline" />)}
+    </>}
+    {step === 2 && goals.map(option => <Choice key={option.label} {...option} selected={d.goal === option.label} onPress={() => update({ goal: option.label, motivation: '', targetWeight: '' })} />)}
+    {step === 3 && <>
+      {question.options.map(label => <Choice key={label} label={label} selected={d.motivation === label} onPress={() => update({ motivation: label })} icon={d.goal === 'Ganhar massa' ? 'barbell-outline' : 'sparkles-outline'} />)}
+      {!!d.motivation && <Note>{first}, seu ponto de partida é único. Essa resposta vai fazer parte do seu perfil.</Note>}
+    </>}
+    {step === 4 && activities.map(option => <Choice key={option.label} {...option} selected={d.activityLevel === option.label} onPress={() => update({ activityLevel: option.label })} />)}
+    {step === 5 && <>
+      <Field label="Peso atual (kg)" placeholder="Ex.: 70,5" value={d.weight} onChangeText={weight => update({ weight })} keyboardType="decimal-pad" maxLength={6} />
+      <Field label="Altura (cm)" placeholder="Ex.: 170" value={d.height} onChangeText={height => update({ height })} keyboardType="decimal-pad" maxLength={6} />
+      {['Perder peso', 'Ganhar massa'].includes(d.goal) && <Field label="Peso desejado (opcional)" placeholder="Você pode decidir depois" value={d.targetWeight} onChangeText={targetWeight => update({ targetWeight })} keyboardType="decimal-pad" maxLength={6} />}
+      <Note>Mais do que números, queremos conhecer sua rotina. Um nutricionista pode ajudar a definir suas metas.</Note>
+    </>}
+    {step === 6 && <>
+      {['Nenhuma', 'Vegetariana', 'Vegana', 'Sem lactose', 'Sem glúten', 'Outras'].map(label => <Choice key={label} label={label} multiple icon="restaurant-outline" selected={d.restrictions.includes(label)} onPress={() => toggleRestriction(label)} />)}
+      <Field label="Algo mais que devemos saber? (opcional)" placeholder="Alergias, intolerâncias ou outros cuidados" value={d.healthNote} onChangeText={healthNote => update({ healthNote })} multiline maxLength={300} />
+    </>}
+    {step === 7 && <>
+      {sources.map(option => <Choice key={option.label} {...option} selected={d.origin === option.label} onPress={() => chooseSource(option.label)} />)}
+      <Note>Com um nutricionista, você pode reunir seu plano e o acompanhamento em um só lugar. A conexão também pode ser feita depois.</Note>
+      {d.origin !== 'Meu nutri está aqui' && <Choice label="Quero conhecer os nutricionistas" description="Ver os profissionais depois do cadastro" icon="people-outline" multiple selected={d.followupPreference === 'explore'} onPress={() => update({ followupPreference: d.followupPreference === 'explore' ? 'later' : 'explore' })} />}
+    </>}
+    {step === 8 && <>
+      <Note>{d.goal} · Atividade: {d.activityLevel}.{d.nutritionist ? ` Conectar com ${d.nutritionist.nome} ao criar a conta.` : ' Você pode conectar um nutricionista depois.'}</Note>
+      <Field label="E-mail" placeholder="voce@exemplo.com" value={d.email} onChangeText={email => update({ email })} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" maxLength={254} />
+      <Field label="Criar senha" placeholder="Use uma frase longa e fácil de lembrar" value={password} onChangeText={setPassword} secret autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" />
+      <View style={{ gap: 8 }}>
+        {passwordRules(password).map(rule => <View key={rule.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Ionicons name={password && rule.ok ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={password && rule.ok ? accent : C.textMuted} /><Text style={{ flex: 1, fontSize: 12, color: C.textMuted }}>{rule.label}</Text></View>)}
+        <Text style={{ fontSize: 12, lineHeight: 18, color: C.textMuted }}>Espaços, números e símbolos são bem-vindos. Use uma senha exclusiva.</Text>
+      </View>
+      <Field label="Confirmar senha" placeholder="Repita a senha" value={confirmation} onChangeText={setConfirmation} secret autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" />
+      <Pressable accessibilityRole="checkbox" accessibilityLabel="Aceito os termos e a política de privacidade" accessibilityState={{ checked: accepted }} onPress={() => setAccepted(value => !value)} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 10 }}>
+        <Ionicons name={accepted ? 'checkbox' : 'square-outline'} color={accent} size={24} /><Text style={{ flex: 1, fontSize: 13, color: C.textMuted, lineHeight: 20 }}>Li e aceito os termos e a política de privacidade.</Text>
+      </Pressable>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-evenly' }}><TextLink label="Ler termos" onPress={() => router.push('/institutional/terms')} /><TextLink label="Privacidade" onPress={() => router.push('/institutional/privacy')} /></View>
+      <TextLink label="Revisar minhas respostas" onPress={() => go(0)} />
+    </>}
+  </OnboardingShell>;
 }
-
-const s = StyleSheet.create({
-  screen:         { flex: 1 },
-  blob:           { position: 'absolute', top: -120, right: -100, width: 340, height: 340, borderRadius: 170 },
-  scroll:         { flexGrow: 1, paddingHorizontal: 24, gap: 14 },
-  backBtn:        { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderWidth: 1 },
-  progressRow:    { flexDirection: 'row', gap: 6, marginBottom: 6 },
-  progressBar:    { flex: 1, height: 4, borderRadius: 2 },
-  progressLabel:  { fontSize: 12, fontWeight: '700', marginBottom: 16 },
-  title:          { fontSize: 30, fontWeight: '900', letterSpacing: -0.5 },
-  subtitle:       { fontSize: 14, marginBottom: 4 },
-  fieldWrap:      { flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, height: 56 },
-  fieldIcon:      { marginRight: 12 },
-  input:          { flex: 1, fontSize: 15 },
-  sectionLabel:   { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
-  sexoRow:        { flexDirection: 'row', gap: 10 },
-  sexoCard:       { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 16, paddingVertical: 14, borderWidth: 1.5, gap: 6 },
-  sexoIcon:       { fontSize: 22 },
-  sexoLabel:      { fontSize: 13, fontWeight: '600' },
-  rulesBox:       { borderRadius: 14, padding: 14, gap: 8, borderWidth: 1 },
-  ruleRow:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  ruleText:       { fontSize: 13 },
-  btnPrimary:     { borderRadius: 16, height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8,
-                    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8 },
-  btnPrimaryText: { fontSize: 17, fontWeight: '800', color: '#fff' },
-  linkRow:        { alignItems: 'center', marginTop: 4 },
-  linkText:       { fontSize: 14, fontWeight: '600' },
-});

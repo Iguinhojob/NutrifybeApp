@@ -34,6 +34,7 @@ export default function ProfileScreen() {
   ];
 
   const menuItems = [
+    { icon: 'person-add-outline' as const, label: user?.nutricionistaId ? 'Meu nutricionista' : 'Vincular nutricionista', onPress: () => router.push(user?.nutricionistaId ? '/(tabs)/plan' : '/auth/nutri-code') },
     { icon: 'sunny-outline'              as const, label: isDark ? 'Modo claro' : 'Modo escuro', onPress: toggleTheme },
     { icon: 'settings-outline'           as const, label: 'Configurações',           onPress: () => router.push('/institutional/settings') },
     { icon: 'information-circle-outline' as const, label: 'Sobre Nós',               onPress: () => router.push('/institutional/about') },
@@ -68,6 +69,19 @@ export default function ProfileScreen() {
             <View key={m.label} style={[s.metricCard, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
               <Text style={[s.metricValue, { color: colors.primary }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{m.value}</Text>
               <Text style={[s.metricLabel, { color: colors.textMuted }]}>{m.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={[s.card, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
+          <Text style={[s.cardTitle, { color: colors.text, marginBottom: 12 }]}>Seu perfil nutricional</Text>
+          {[
+            ['Nascimento', user?.birthDate], ['Sexo', user?.sexo], ['Atividade diária', user?.activityLevel],
+            ['Seu momento', user?.motivation], ['Preferências alimentares', user?.restrictions], ['Outros cuidados', user?.healthNote],
+          ].filter(([, value]) => !!value).map(([label, value]) => (
+            <View key={label} style={[s.field, { borderBottomColor: colors.border }]}>
+              <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{label}</Text>
+              <Text style={[s.fieldValue, { color: colors.text }]}>{value}</Text>
             </View>
           ))}
         </View>

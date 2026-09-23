@@ -1,4 +1,5 @@
 import { AuthProvider } from '@/context/auth';
+import { OnboardingProvider } from '@/context/onboarding';
 import { ThemeProvider, usePremiumTheme } from '@/context/theme';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -38,7 +39,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <OnboardingProvider>
         <AppStack />
+        </OnboardingProvider>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -1,0 +1,31 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+
+const source = fs.readFileSync(path.join(__dirname, '../utils/onboarding.ts'), 'utf8');
+const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+const sandbox = { exports: {} };
+vm.runInNewContext(output, sandbox);
+const { ageFromBirthDate, formatBirthDate, decimal, isValidEmail, isValidPassword, measurementError } = sandbox.exports;
+
+const today = new Date(2026, 8, 23);
+assert.equal(ageFromBirthDate('29/02/2000', today), 26);
+assert.equal(ageFromBirthDate('24/09/2000', today), 25);
+assert.equal(ageFromBirthDate('23/09/2000', today), 26);
+for (const date of ['31/02/2000', '29/02/2001', '00/10/2000', '12/13/2000', '01/01/3000', '01/01/1800', '123', '01/01/0001']) assert.equal(ageFromBirthDate(date, today), null);
+assert.equal(formatBirthDate('29022000'), '29/02/2000');
+assert.equal(decimal('70,5'), 70.5);
+for (const invalid of ['70kg', '-1', '1e3', '12.3.4', '']) assert.ok(Number.isNaN(decimal(invalid)));
+assert.ok(isValidEmail('ana@example.test'));
+for (const email of ['ana', 'ana@', 'ana@host', 'a b@host.com', 'a@host..com']) assert.ok(!isValidEmail(email));
+assert.ok(isValidPassword('Uma frase longa e exclusiva!'));
+for (const password of ['curta', '123456789012345', 'aaaaaaaaaaaaaaaa', 'senha'.repeat(4), 'x'.repeat(129)]) assert.ok(!isValidPassword(password));
+assert.ok(isValidPassword('A'.repeat(114) + '1234567890bcde'));
+assert.ok(!measurementError('70,5', '170', '', 'Melhorar saúde'));
+assert.ok(measurementError('70', '0', '', 'Manter peso'));
+assert.ok(measurementError('70', '170', '80', 'Perder peso'));
+assert.ok(measurementError('70', '170', '60', 'Ganhar massa'));
+assert.ok(!measurementError('70', '170', '65', 'Perder peso'));
+console.log('Onboarding: date, email, decimal, password and measurement checks passed.');
