@@ -33,7 +33,7 @@ const sources: Option[] = [
 ];
 const adaptive: Record<string, { title: string; options: string[] }> = {
   'Perder peso': { title: 'O que mais desafia sua rotina?', options: ['Organizar as refeições', 'Encontrar constância', 'Entender meus hábitos'] },
-  'Ganhar massa': { title: 'Como está sua rotina de treinos?', options: ['Estou começando', 'Já treino regularmente', 'Quero retomar meus treinos'] },
+  'Ganhar massa': { title: 'Como está sua rotina de treinos?', options: ['Não treino', 'Estou começando', 'Já treino regularmente', 'Quero retomar meus treinos'] },
   'Manter peso': { title: 'O que você quer manter em equilíbrio?', options: ['Horários das refeições', 'Variedade no prato', 'Alimentação e movimento'] },
   'Melhorar saúde': { title: 'Por onde você gostaria de começar?', options: ['Ter mais disposição', 'Variar minha alimentação', 'Organizar minha rotina'] },
 };
@@ -177,16 +177,16 @@ export default function AboutYouScreen() {
     {step === 8 && <>
       <Note>{d.goal} · Atividade: {d.activityLevel}.{d.nutritionist ? ` Conectar com ${d.nutritionist.nome} ao criar a conta.` : ' Você pode conectar um nutricionista depois.'}</Note>
       <Field label="E-mail" placeholder="voce@exemplo.com" value={d.email} onChangeText={email => update({ email })} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" maxLength={254} />
-      <Field label="Criar senha" placeholder="Use uma frase longa e fácil de lembrar" value={password} onChangeText={setPassword} secret autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" />
+      <Field label="Criar senha" placeholder="Use uma senha forte" value={password} onChangeText={setPassword} secret autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" />
+      <Field label="Confirmar senha" placeholder="Repita a senha" value={confirmation} onChangeText={setConfirmation} secret autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" />
       <View style={{ gap: 8 }}>
         {passwordRules(password).map(rule => <View key={rule.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Ionicons name={password && rule.ok ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={password && rule.ok ? accent : C.textMuted} /><Text style={{ flex: 1, fontSize: 12, color: C.textMuted }}>{rule.label}</Text></View>)}
         <Text style={{ fontSize: 12, lineHeight: 18, color: C.textMuted }}>Espaços, números e símbolos são bem-vindos. Use uma senha exclusiva.</Text>
       </View>
-      <Field label="Confirmar senha" placeholder="Repita a senha" value={confirmation} onChangeText={setConfirmation} secret autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" />
       <Pressable accessibilityRole="checkbox" accessibilityLabel="Aceito os termos e a política de privacidade" accessibilityState={{ checked: accepted }} onPress={() => setAccepted(value => !value)} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 10 }}>
         <Ionicons name={accepted ? 'checkbox' : 'square-outline'} color={accent} size={24} /><Text style={{ flex: 1, fontSize: 13, color: C.textMuted, lineHeight: 20 }}>Li e aceito os termos e a política de privacidade.</Text>
       </Pressable>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-evenly' }}><TextLink label="Ler termos" onPress={() => router.push('/institutional/terms')} /><TextLink label="Privacidade" onPress={() => router.push('/institutional/privacy')} /></View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-evenly', gap: 12 }}><TextLink label="Ler termos" outlined onPress={() => router.push('/institutional/terms')} /><TextLink label="Privacidade" outlined onPress={() => router.push('/institutional/privacy')} /></View>
       <TextLink label="Revisar minhas respostas" onPress={() => go(0)} />
     </>}
   </OnboardingShell>;

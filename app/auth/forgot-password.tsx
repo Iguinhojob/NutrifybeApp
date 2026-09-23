@@ -37,7 +37,7 @@ export default function ForgotPasswordScreen() {
     {step === 'email' && <Field label="E-mail cadastrado" placeholder="voce@exemplo.com" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" />}
     {step === 'preview' && <Note>E-mail informado: {email.trim()}. Na versão conectada, a mensagem não confirmará se existe uma conta com esse endereço.</Note>}
     {step === 'reset' && <>
-      <Field label="Nova senha" placeholder="Use uma frase com pelo menos 15 caracteres" value={password} onChangeText={setPassword} secret autoComplete="new-password" autoCapitalize="none" autoCorrect={false} />
+      <Field label="Nova senha" placeholder="Use uma frase com pelo menos 6 caracteres" value={password} onChangeText={setPassword} secret autoComplete="new-password" autoCapitalize="none" autoCorrect={false} />
       <View style={{ gap: 8 }}>{passwordRules(password).map(rule => <View key={rule.label} style={{ flexDirection: 'row', gap: 8 }}><Ionicons name={password && rule.ok ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={C.textMuted} /><Text style={{ flex: 1, fontSize: 12, color: C.textMuted }}>{rule.label}</Text></View>)}</View>
       <Field label="Confirmar nova senha" placeholder="Repita a nova senha" value={confirmation} onChangeText={setConfirmation} secret autoComplete="new-password" autoCapitalize="none" autoCorrect={false} />
     </>}

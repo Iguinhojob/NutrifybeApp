@@ -69,17 +69,17 @@ export default function WelcomeScreen() {
             >
               <View style={s.eyebrowRow}>
                 <View style={[s.eyebrowDot, { backgroundColor: accent }]} />
-                <Text style={[s.eyebrow, font('semibold'), { color: accent }]}>BEM-ESTAR, DO SEU JEITO</Text>
+                <Text style={[s.eyebrow, font('semibold'), { color: accent }]}>Seu plano alimentar sempre com você.</Text>
               </View>
               <Text
                 accessibilityRole="header"
                 style={[s.title, compact && s.titleCompact, wide && s.titleWide, font('bold'), { color: C.text }]}
               >
-                Mais leve.{'\n'}
-                <Text style={{ color: accent }}>Mais você.</Text>
+                Sua alimentação.{'\n'}
+                <Text style={{ color: accent }}>Sua evolução.</Text>
               </Text>
               <Text style={[s.description, font('regular'), { color: C.textMuted }, wide && s.alignLeft]}>
-                Uma alimentação que combina com a sua vida. Um passo de cada vez.
+              Siga seu plano alimentar e acompanhe sua evolução em um só lugar.
               </Text>
             </Animated.View>
 
@@ -89,7 +89,7 @@ export default function WelcomeScreen() {
             >
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Começar minha jornada"
+                accessibilityLabel="Começar agora"
                 accessibilityHint="Abre o cadastro para personalizar seu plano"
                 onPress={() => router.push('/auth/about-you')}
                 style={({ pressed }) => [
@@ -103,10 +103,9 @@ export default function WelcomeScreen() {
                   style={s.buttonFill}
                 >
                   <Text style={[s.primaryLabel, font('semibold')]}>Começar minha jornada</Text>
-                  <Ionicons name="arrow-forward" color="#FFFFFF" size={21} />
                 </LinearGradient>
               </Pressable>
-              <Text style={[s.freeNote, font('medium'), { color: C.textMuted }]}>Seu primeiro passo é gratuito</Text>
+              <Text style={[s.freeNote, font('medium'), { color: C.textMuted }]}>O primeiro passo para uma alimentação mais organizada.</Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Já tenho conta. Entrar"
@@ -123,7 +122,7 @@ export default function WelcomeScreen() {
 
         <View style={s.footer}>
           <View style={[s.footerLine, { backgroundColor: C.border }]} />
-          <Text style={[s.footerText, font('medium'), { color: C.textMuted }]}>Nutrição que acolhe você</Text>
+          <Text style={[s.footerText, font('medium'), { color: C.textMuted }]}>Sua evolução, acompanhada de perto.</Text>
           <View style={[s.footerLine, { backgroundColor: C.border }]} />
         </View>
       </ScrollView>

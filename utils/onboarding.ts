@@ -1,13 +1,13 @@
-export const PASSWORD_MIN_LENGTH = 15;
-export const PASSWORD_MAX_LENGTH = 128;
+export const PASSWORD_MIN_LENGTH = 6;
 
 export function passwordRules(password: string) {
   const length = Array.from(password).length;
   const sequential = ['0123456789', '9876543210', 'abcdefghijklmnopqrstuvwxyz', 'qwertyuiopasdfghjklzxcvbnm']
     .some(sequence => sequence.repeat(Math.ceil(password.length / sequence.length) + 1).includes(password.toLowerCase()));
   return [
-    { label: 'Pelo menos 15 caracteres', ok: length >= PASSWORD_MIN_LENGTH },
-    { label: 'No máximo 128 caracteres', ok: length <= PASSWORD_MAX_LENGTH },
+    { label: 'Pelo menos 6 caracteres', ok: length >= PASSWORD_MIN_LENGTH },
+    { label: 'Pelo menos uma letra maiúscula', ok: /[A-Z]/.test(password) },
+    { label: 'Pelo menos um símbolo', ok: /[^A-Za-z0-9\s]/.test(password) },
     { label: 'Evite repetições e sequências comuns', ok: !sequential && new Set(password.toLowerCase()).size >= 5 && !/^(?:qwerty|password|senha|abcdef|\s)+$/i.test(password) },
   ];
 }

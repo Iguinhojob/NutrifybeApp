@@ -78,7 +78,6 @@ export default function RecommendationScreen() {
           activeOpacity={0.85}
         >
           <Text style={s.btnPrimaryText}>Começar</Text>
-          <Ionicons name="arrow-forward" size={18} color="#fff" />
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.back()} style={s.adjustRow}>

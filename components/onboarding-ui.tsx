@@ -53,7 +53,7 @@ export function PrimaryButton({ label, onPress, disabled, busy }: { label: strin
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled || !!busy, busy: !!busy }} disabled={disabled || busy} onPress={onPress} style={({ pressed }) => ({ opacity: disabled || busy ? 0.5 : pressed ? 0.8 : 1 })}>
     <LinearGradient colors={isDark ? ['#7C3AED', '#4D1E97'] : ['#0094AC', '#007F95']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.button}>
       <Text style={[styles.buttonText, { fontFamily: fonts.semibold }]}>{label}</Text>
-      {busy ? <ActivityIndicator color="#fff" /> : <Ionicons name="arrow-forward" size={19} color="#fff" />}
+      {busy && <ActivityIndicator color="#fff" />}
     </LinearGradient>
   </Pressable>;
 }
@@ -88,9 +88,9 @@ export function Note({ children }: { children: ReactNode }) {
   return <View style={[styles.note, { backgroundColor: C.primarySoft }]}><Ionicons name="sparkles-outline" size={18} color={isDark ? C.primaryLight : C.primaryDark} /><Text style={{ flex: 1, color: C.textMuted, fontSize: 13, lineHeight: 20 }}>{children}</Text></View>;
 }
 
-export function TextLink({ label, onPress }: { label: string; onPress: () => void }) {
+export function TextLink({ label, onPress, outlined = false }: { label: string; onPress: () => void; outlined?: boolean }) {
   const { colors: C, isDark } = usePremiumTheme();
-  return <Pressable accessibilityRole="button" onPress={onPress} style={{ minHeight: 44, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: isDark ? C.primaryLight : C.primaryDark, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" onPress={onPress} style={{ minHeight: 44, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 22, borderWidth: outlined ? 1 : 0, borderColor: outlined ? C.border : 'transparent', justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: isDark ? C.primaryLight : C.primaryDark, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>{label}</Text></Pressable>;
 }
 
 const styles = StyleSheet.create({
