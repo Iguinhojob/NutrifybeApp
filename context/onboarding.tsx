@@ -12,6 +12,7 @@ export type OnboardingDraft = {
   weight: string;
   height: string;
   targetWeight: string;
+  waterGoal: string;
   restrictions: string[];
   healthNote: string;
   origin: string;
@@ -23,7 +24,7 @@ export type OnboardingDraft = {
 
 const initial: OnboardingDraft = {
   step: 0, name: '', birthDate: '', sexo: '', goal: '', motivation: '', activityLevel: '',
-  weight: '', height: '', targetWeight: '', restrictions: [], healthNote: '', origin: '',
+  weight: '', height: '', targetWeight: '', waterGoal: '', restrictions: [], healthNote: '', origin: '',
   followupPreference: 'later', nutritionist: null, nutriCode: '', email: '',
 };
 

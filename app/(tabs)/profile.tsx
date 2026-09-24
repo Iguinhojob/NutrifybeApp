@@ -19,7 +19,13 @@ export default function ProfileScreen() {
   }, [user]);
 
   const set = (key: string) => (val: string) => setForm(f => ({ ...f, [key]: val }));
-  const save = () => { if (!form.name.trim()) return Alert.alert('Erro', 'Nome não pode ser vazio.'); updateUser(form); setEditing(false); Alert.alert('Sucesso', 'Perfil atualizado!'); };
+  const save = async () => {
+    if (!form.name.trim()) return Alert.alert('Erro', 'Nome não pode ser vazio.');
+    const saved = await updateUser(form);
+    if (!saved) return Alert.alert('Erro', 'Não foi possível salvar as alterações. Verifique sua conexão e tente novamente.');
+    setEditing(false);
+    Alert.alert('Sucesso', 'Perfil atualizado!');
+  };
   const cancelEdit = () => { if (user) setForm({ name: user.name || '', weight: user.weight || '', height: user.height || '', goal: user.goal || '', targetWeight: user.targetWeight || '', waterGoal: user.waterGoal || '' }); setEditing(false); };
   const handleLogout = () => { logout(); router.replace('/auth/login'); };
   const bmi = user?.weight && user?.height ? (parseFloat(user.weight) / Math.pow(parseFloat(user.height) / 100, 2)).toFixed(1) : '—';

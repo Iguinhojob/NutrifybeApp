@@ -3,20 +3,23 @@ import { usePremiumTheme } from '@/context/theme';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { calculateCalorieGoal } from '@/utils/onboarding';
 
-function getSuggestion(goal: string, weight: string, targetWeight: string) {
+function getSuggestion(user: { goal?: string; weight?: string; targetWeight?: string; height?: string; birthDate?: string; sexo?: string; activityLevel?: string }) {
+  const goal = user.goal || '', weight = user.weight || '', targetWeight = user.targetWeight || '';
   const w = parseFloat(weight) || 70, t = parseFloat(targetWeight) || 65, diff = w - t;
+  const kcal = calculateCalorieGoal({ weight, height: user.height || '', birthDate: user.birthDate || '', sexo: user.sexo || '', activityLevel: user.activityLevel || '', goal, targetWeight });
   if (goal === 'Perder peso' && diff > 0)
-    return { title: 'Déficit calórico moderado', desc: `Para perder ${diff.toFixed(0)}kg, sugerimos um déficit de ~300–500 kcal/dia com foco em proteínas e vegetais.`, kcal: Math.round(w * 28), protein: Math.round(w * 1.8), icon: 'trending-down-outline' as const };
+    return { title: 'Déficit calórico moderado', desc: `Para perder ${diff.toFixed(0)}kg, sugerimos um déficit gradual com foco em proteínas e vegetais.`, kcal, protein: Math.round(w * 1.8), icon: 'trending-down-outline' as const };
   if (goal === 'Ganhar massa')
-    return { title: 'Superávit calórico limpo', desc: 'Para ganhar massa muscular, sugerimos um superávit de ~300 kcal/dia com alta ingestão proteica.', kcal: Math.round(w * 34), protein: Math.round(w * 2.2), icon: 'trending-up-outline' as const };
-  return { title: 'Manutenção equilibrada', desc: 'Seu plano foca em manter o peso atual com alimentação balanceada e hidratação adequada.', kcal: Math.round(w * 30), protein: Math.round(w * 1.6), icon: 'remove-outline' as const };
+    return { title: 'Superávit calórico limpo', desc: 'Para ganhar massa muscular, sugerimos um superávit gradual com alta ingestão proteica.', kcal, protein: Math.round(w * 2.2), icon: 'trending-up-outline' as const };
+  return { title: 'Manutenção equilibrada', desc: 'Seu plano foca em manter o peso atual com alimentação balanceada e hidratação adequada.', kcal, protein: Math.round(w * 1.6), icon: 'remove-outline' as const };
 }
 
 export default function RecommendationScreen() {
   const { user } = useAuth();
   const { colors: C } = usePremiumTheme();
-  const sg = getSuggestion(user?.goal || '', user?.weight || '70', user?.targetWeight || '65');
+  const sg = getSuggestion(user || {});
 
   const metrics = [
     { value: String(sg.kcal), label: 'kcal/dia' },

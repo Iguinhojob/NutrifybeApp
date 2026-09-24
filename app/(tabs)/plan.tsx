@@ -7,21 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 const DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const PLAN: Record<string, { name: string; time: string; foods: string[]; kcal: number; origin: 'IA' | 'Nutricionista' | 'Pendente'; done: boolean }[]> = {
-  Seg: [{ name: 'Café da manhã', time: '07:00', foods: ['Aveia com frutas', 'Mel', 'Café preto'], kcal: 320, origin: 'IA', done: true }, { name: 'Almoço', time: '12:30', foods: ['Arroz integral', 'Feijão', 'Frango grelhado', 'Salada verde'], kcal: 680, origin: 'Nutricionista', done: true }, { name: 'Lanche', time: '16:00', foods: ['Iogurte grego', 'Granola'], kcal: 210, origin: 'IA', done: false }, { name: 'Jantar', time: '19:30', foods: ['Salmão assado', 'Legumes no vapor'], kcal: 520, origin: 'Nutricionista', done: false }],
-  Ter: [{ name: 'Café da manhã', time: '07:00', foods: ['Ovos mexidos', 'Torrada integral'], kcal: 350, origin: 'IA', done: false }, { name: 'Almoço', time: '12:30', foods: ['Macarrão integral', 'Atum', 'Tomate'], kcal: 620, origin: 'IA', done: false }, { name: 'Lanche', time: '16:00', foods: ['Banana', 'Pasta de amendoim'], kcal: 240, origin: 'Pendente', done: false }, { name: 'Jantar', time: '19:30', foods: ['Sopa de legumes', 'Frango desfiado'], kcal: 480, origin: 'Pendente', done: false }],
-  Qua: [{ name: 'Café da manhã', time: '07:00', foods: ['Smoothie de frutas', 'Proteína em pó'], kcal: 290, origin: 'IA', done: false }, { name: 'Almoço', time: '12:30', foods: ['Tilápia grelhada', 'Purê de batata doce'], kcal: 590, origin: 'Nutricionista', done: false }, { name: 'Lanche', time: '16:00', foods: ['Mix de castanhas', 'Frutas secas'], kcal: 180, origin: 'IA', done: false }, { name: 'Jantar', time: '19:30', foods: ['Omelete de espinafre', 'Queijo cottage'], kcal: 440, origin: 'IA', done: false }],
-  Qui: [{ name: 'Café da manhã', time: '07:00', foods: ['Panqueca de banana', 'Mel'], kcal: 380, origin: 'Pendente', done: false }, { name: 'Almoço', time: '12:30', foods: ['Carne moída', 'Arroz', 'Feijão'], kcal: 720, origin: 'Nutricionista', done: false }, { name: 'Lanche', time: '16:00', foods: ['Maçã', 'Queijo branco'], kcal: 160, origin: 'IA', done: false }, { name: 'Jantar', time: '19:30', foods: ['Frango ao forno', 'Batata doce'], kcal: 560, origin: 'IA', done: false }],
-  Sex: [{ name: 'Café da manhã', time: '07:00', foods: ['Tapioca', 'Frango', 'Queijo'], kcal: 340, origin: 'IA', done: false }, { name: 'Almoço', time: '12:30', foods: ['Peixe grelhado', 'Quinoa', 'Salada'], kcal: 580, origin: 'Nutricionista', done: false }, { name: 'Lanche', time: '16:00', foods: ['Vitamina de abacate'], kcal: 220, origin: 'IA', done: false }, { name: 'Jantar', time: '19:30', foods: ['Wrap integral', 'Atum', 'Legumes'], kcal: 460, origin: 'IA', done: false }],
-  Sáb: [{ name: 'Café da manhã', time: '08:00', foods: ['Açaí', 'Granola', 'Frutas'], kcal: 420, origin: 'Pendente', done: false }, { name: 'Almoço', time: '13:00', foods: ['Churrasco magro', 'Salada verde'], kcal: 650, origin: 'Pendente', done: false }, { name: 'Lanche', time: '16:30', foods: ['Barra de proteína'], kcal: 200, origin: 'IA', done: false }, { name: 'Jantar', time: '20:00', foods: ['Sopa de lentilha', 'Pão integral'], kcal: 480, origin: 'Pendente', done: false }],
-  Dom: [{ name: 'Café da manhã', time: '08:30', foods: ['Pão integral', 'Ovos', 'Abacate'], kcal: 400, origin: 'IA', done: false }, { name: 'Almoço', time: '13:00', foods: ['Frango assado', 'Arroz', 'Feijão'], kcal: 700, origin: 'Nutricionista', done: false }, { name: 'Lanche', time: '16:00', foods: ['Iogurte', 'Chia', 'Mel'], kcal: 190, origin: 'IA', done: false }, { name: 'Jantar', time: '19:30', foods: ['Salada completa', 'Atum', 'Ovos'], kcal: 420, origin: 'IA', done: false }],
-};
-const ORIGIN: Record<string, { color: string; bg: string }> = {
-  IA:            { color: '#3B82F6', bg: '#EFF6FF' },
-  Nutricionista: { color: '#22C55E', bg: '#F0FDF4' },
-  Pendente:      { color: '#F97316', bg: '#FFF7ED' },
-};
-
+const PLAN: Record<string, { name: string; time: string; foods: string[]; kcal: number; done: boolean }[]> = Object.fromEntries(DAYS.map(day => [day, []]));
 // ── Tela Dieta Nutri (vínculo ativo) ─────────────────────────────────────────
 function DietaNutriScreen() {
   const { colors: C } = usePremiumTheme();
@@ -215,25 +201,9 @@ function StandardPlanScreen() {
               <Text style={{ fontSize: 13, color: C.textMuted }}>{doneMeals}/{meals.length} refeições</Text>
             </View>
             <View style={{ width: 100, height: 6, borderRadius: 3, backgroundColor: C.border, overflow: 'hidden' }}>
-              <View style={{ height: 6, borderRadius: 3, backgroundColor: C.primary, width: `${(doneMeals / meals.length) * 100}%` as any }} />
+              <View style={{ height: 6, borderRadius: 3, backgroundColor: C.primary, width: `${meals.length ? (doneMeals / meals.length) * 100 : 0}%` as any }} />
             </View>
           </View>
-        </View>
-
-        {/* Macros */}
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-          {[
-            { label: 'Proteína', value: `${Math.round(totalKcal * 0.3 / 4)}g`,  color: '#3B82F6', bg: '#EFF6FF' },
-            { label: 'Carbo',    value: `${Math.round(totalKcal * 0.45 / 4)}g`, color: '#F97316', bg: '#FFF7ED' },
-            { label: 'Gordura',  value: `${Math.round(totalKcal * 0.25 / 9)}g`, color: '#EAB308', bg: '#FEFCE8' },
-          ].map(m => (
-            <View key={m.label} style={{ flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', backgroundColor: C.surface,
-              shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.color, marginBottom: 4 }} />
-              <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>{m.value}</Text>
-              <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600', marginTop: 2 }}>{m.label}</Text>
-            </View>
-          ))}
         </View>
 
         {/* Refeições */}
@@ -250,9 +220,6 @@ function StandardPlanScreen() {
                 <Text style={{ fontSize: 15, fontWeight: '700', color: meal.done ? C.textMuted : C.text,
                   ...(meal.done ? { textDecorationLine: 'line-through' as const } : {}) }}>{meal.name}</Text>
                 <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{meal.time} · {meal.kcal} kcal</Text>
-              </View>
-              <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ORIGIN[meal.origin].bg }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: ORIGIN[meal.origin].color }}>{meal.origin}</Text>
               </View>
               <Ionicons name={expanded === i ? 'chevron-up' : 'chevron-down'} size={16} color={C.textMuted} />
             </TouchableOpacity>
@@ -274,6 +241,9 @@ function StandardPlanScreen() {
             )}
           </View>
         ))}
+        {!meals.length && <View style={{ backgroundColor: C.surface, borderRadius: 18, padding: 18, marginBottom: 12 }}>
+          <Text style={{ color: C.textMuted, fontSize: 14, lineHeight: 20 }}>Nenhum plano alimentar foi cadastrado para este dia. Registre suas refeições pela tela Início ou conecte seu nutricionista.</Text>
+        </View>}
 
         {/* Ações */}
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>

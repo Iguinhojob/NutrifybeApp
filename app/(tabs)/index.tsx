@@ -2,13 +2,14 @@ import { useAuth } from '@/context/auth';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { usePremiumTheme } from '@/context/theme';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { calculateCalorieGoal } from '@/utils/onboarding';
+import { DiaryAPI, type MealEntry } from '@/services/api';
 
 const DAYS  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MEALS = ['Café da manhã', 'Almoço', 'Lanche', 'Jantar'];
-const CAL_EATEN = 1240, CAL_GOAL = 1840;
 
 function getWeekDays() {
   const today = new Date();
@@ -56,16 +57,35 @@ export default function HomeScreen() {
   const { topPad } = useAppLayout();
   const today = new Date(), weekDays = getWeekDays();
   const firstName = user?.name?.split(' ')[0] || 'você';
+  const calorieGoal = calculateCalorieGoal({
+    weight: user?.weight || '', height: user?.height || '', birthDate: user?.birthDate || '',
+    sexo: user?.sexo || '', activityLevel: user?.activityLevel || '', goal: user?.goal || '', targetWeight: user?.targetWeight || '',
+  });
   const [selectedDay, setSelectedDay] = useState(today.getDay());
   const [mealModal, setMealModal]     = useState(false);
-  const [meals, setMeals]             = useState<Record<string, string>>({});
+  const [meals, setMeals]             = useState<Record<string, { description: string; calories: string }>>({});
+  const [mealEntries, setMealEntries] = useState<MealEntry[]>([]);
+  const [savingMeals, setSavingMeals] = useState(false);
   const unread = notificacoes?.filter(n => !n.lida).length ?? 0;
-
-  const MACROS = [
-    { label: 'Proteína', eaten: 98,  goal: 140, color: '#3B82F6', bg: '#EFF6FF' },
-    { label: 'Carboidr.', eaten: 180, goal: 250, color: '#F97316', bg: '#FFF7ED' },
-    { label: 'Gordura',  eaten: 44,  goal: 65,  color: '#EAB308', bg: '#FEFCE8' },
-  ];
+  const eatenCalories = Math.round(mealEntries.reduce((total, entry) => total + Number(entry.calories), 0));
+  const loadMeals = async () => setMealEntries(await DiaryAPI.meals());
+  useEffect(() => { loadMeals().catch(() => {}); }, []);
+  const saveMeals = async () => {
+    const pending = MEALS.map(meal => ({ meal, ...meals[meal] }))
+      .filter(item => item.description?.trim() && Number(item.calories) > 0);
+    if (!pending.length) { Alert.alert('Refeição não registrada', 'Informe o alimento e as calorias de pelo menos uma refeição.'); return; }
+    setSavingMeals(true);
+    try {
+      await Promise.all(pending.map(item => DiaryAPI.addMeal({ mealType: item.meal, description: item.description.trim(), calories: Number(item.calories) })));
+      await loadMeals(); setMeals({}); setMealModal(false);
+    } catch (error) {
+      Alert.alert('Erro', error instanceof Error ? error.message : 'Não foi possível registrar as refeições.');
+    } finally { setSavingMeals(false); }
+  };
+  const deleteMeal = async (id: number) => {
+    try { await DiaryAPI.deleteMeal(id); await loadMeals(); }
+    catch (error) { Alert.alert('Erro', error instanceof Error ? error.message : 'Não foi possível remover a refeição.'); }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -96,22 +116,7 @@ export default function HomeScreen() {
               <Ionicons name="add" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
-          <CalRing eaten={CAL_EATEN} goal={CAL_GOAL} C={C} />
-        </View>
-
-        {/* Macros */}
-        <View style={s.macrosRow}>
-          {MACROS.map(m => (
-            <View key={m.label} style={[s.macroCard, { backgroundColor: C.surface }]}>
-              <View style={[s.macroDot, { backgroundColor: m.color }]} />
-              <Text style={[s.macroVal, { color: C.text }]}>{m.eaten}g</Text>
-              <Text style={[s.macroName, { color: C.textMuted }]}>{m.label}</Text>
-              <View style={[s.macroBar, { backgroundColor: C.border }]}>
-                <View style={[s.macroFill, { width: `${(m.eaten / m.goal) * 100}%` as any, backgroundColor: m.color }]} />
-              </View>
-              <Text style={[s.macroGoal, { color: C.textDim }]}>/ {m.goal}g</Text>
-            </View>
-          ))}
+          <CalRing eaten={eatenCalories} goal={calorieGoal} C={C} />
         </View>
 
         {/* Calendário semanal */}
@@ -162,23 +167,20 @@ export default function HomeScreen() {
               <Text style={[s.cardLink, { color: C.primary }]}>+ Adicionar</Text>
             </TouchableOpacity>
           </View>
-          {[
-            { name: 'Café da manhã', time: '07:30', kcal: 320, done: true  },
-            { name: 'Almoço',        time: '12:30', kcal: 680, done: true  },
-            { name: 'Lanche',        time: '16:00', kcal: 210, done: false },
-            { name: 'Jantar',        time: '19:30', kcal: 520, done: false },
-          ].map((meal, i, arr) => (
-            <View key={i} style={[s.mealRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}>
-              <View style={[s.mealDot, { backgroundColor: meal.done ? C.primary : C.border }]}>
-                {meal.done && <Ionicons name="checkmark" size={12} color="#fff" />}
-              </View>
+          {mealEntries.map((meal, i) => (
+            <View key={meal.id} style={[s.mealRow, i < mealEntries.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}>
+              <View style={[s.mealDot, { backgroundColor: C.primary }]}><Ionicons name="checkmark" size={12} color="#fff" /></View>
               <View style={{ flex: 1 }}>
-                <Text style={[s.mealName, { color: meal.done ? C.text : C.textMuted }]}>{meal.name}</Text>
-                <Text style={[s.mealTime, { color: C.textDim }]}>{meal.time}</Text>
+                <Text style={[s.mealName, { color: C.text }]}>{meal.mealType}</Text>
+                <Text style={[s.mealTime, { color: C.textDim }]} numberOfLines={2}>{meal.description}</Text>
               </View>
-              <Text style={[s.mealKcal, { color: meal.done ? C.primary : C.textMuted }]}>{meal.kcal} kcal</Text>
+              <Text style={[s.mealKcal, { color: C.primary }]}>{Math.round(Number(meal.calories))} kcal</Text>
+              <TouchableOpacity accessibilityLabel="Remover refeição" onPress={() => deleteMeal(meal.id)}>
+                <Ionicons name="close-circle-outline" size={20} color={C.textMuted} />
+              </TouchableOpacity>
             </View>
           ))}
+          {!mealEntries.length && <Text style={{ color: C.textMuted, fontSize: 14, paddingVertical: 10 }}>Nenhuma refeição registrada hoje.</Text>}
         </View>
 
         {/* Botão plano */}
@@ -201,16 +203,21 @@ export default function HomeScreen() {
               <View key={meal} style={s.mealItem}>
                 <Text style={[s.mealItemLabel, { color: C.textMuted }]}>{meal}</Text>
                 <View style={[s.mealFieldWrap, { backgroundColor: C.surface, borderColor: C.border }]}>
-                  <TextInput style={[s.mealInput, { color: C.text }]} placeholder="Ex: Arroz, feijão, frango..."
-                    value={meals[meal] || ''} onChangeText={v => setMeals(m => ({ ...m, [meal]: v }))}
+                  <TextInput style={[s.mealInput, { color: C.text }]} placeholder="Alimentos consumidos"
+                    value={meals[meal]?.description || ''} onChangeText={v => setMeals(m => ({ ...m, [meal]: { description: v, calories: m[meal]?.calories || '' } }))}
+                    placeholderTextColor={C.textDim} />
+                </View>
+                <View style={[s.mealFieldWrap, { backgroundColor: C.surface, borderColor: C.border, marginTop: 8 }]}>
+                  <TextInput style={[s.mealInput, { color: C.text }]} placeholder="Calorias (kcal)" keyboardType="decimal-pad"
+                    value={meals[meal]?.calories || ''} onChangeText={v => setMeals(m => ({ ...m, [meal]: { description: m[meal]?.description || '', calories: v.replace(',', '.') } }))}
                     placeholderTextColor={C.textDim} />
                 </View>
               </View>
             ))}
           </ScrollView>
-          <TouchableOpacity style={[s.modalBtn, { backgroundColor: C.primary }]}
-            onPress={() => { Alert.alert('Sucesso', 'Refeições registradas!'); setMealModal(false); }}>
-            <Text style={s.modalBtnText}>Registrar</Text>
+          <TouchableOpacity disabled={savingMeals} style={[s.modalBtn, { backgroundColor: C.primary, opacity: savingMeals ? 0.6 : 1 }]}
+            onPress={saveMeals}>
+            <Text style={s.modalBtnText}>{savingMeals ? 'Salvando…' : 'Registrar'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.cancelBtn} onPress={() => setMealModal(false)}>
             <Text style={[s.cancelText, { color: C.textMuted }]}>Cancelar</Text>
@@ -234,15 +241,6 @@ const s = StyleSheet.create({
   cardTitle:     { fontSize: 16, fontWeight: '700' },
   cardLink:      { fontSize: 13, fontWeight: '600' },
   addBtn:        { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  macrosRow:     { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  macroCard:     { flex: 1, borderRadius: 16, padding: 12, gap: 4,
-                   shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  macroDot:      { width: 8, height: 8, borderRadius: 4 },
-  macroVal:      { fontSize: 16, fontWeight: '800' },
-  macroName:     { fontSize: 10, fontWeight: '600' },
-  macroBar:      { height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 2 },
-  macroFill:     { height: 4, borderRadius: 2 },
-  macroGoal:     { fontSize: 9 },
   weekRow:       { flexDirection: 'row', justifyContent: 'space-between' },
   dayCell:       { flex: 1, minWidth: 40, alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12, gap: 4 },
   dayName:       { fontSize: 10, fontWeight: '600' },

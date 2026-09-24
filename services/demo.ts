@@ -1,7 +1,7 @@
 import type { Nutricionista } from './api';
 
 // Frontend preview requested for this phase. No account, email or link is sent to the server.
-export const DEMO_MODE = true;
+export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
 export const DEMO_NUTRI_CODE = '1234';
 export const DEMO_NUTRITIONIST: Nutricionista = {
   id: 1234, nome: 'Ana Souza', email: 'ana@example.test', crn: 'DEMO-1234',

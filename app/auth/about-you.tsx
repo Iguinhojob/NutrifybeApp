@@ -3,7 +3,7 @@ import { useAuth } from '@/context/auth';
 import { useOnboarding, type OnboardingDraft } from '@/context/onboarding';
 import { usePremiumTheme } from '@/context/theme';
 import { DEMO_MODE } from '@/services/demo';
-import { ageFromBirthDate, formatBirthDate, isValidEmail, isValidPassword, measurementError, passwordRules } from '@/utils/onboarding';
+import { ageFromBirthDate, decimal, formatBirthDate, isValidEmail, isValidPassword, measurementError, passwordRules, suggestedWaterGoal } from '@/utils/onboarding';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { type ComponentProps, useRef, useState } from 'react';
@@ -75,6 +75,9 @@ export default function AboutYouScreen() {
     if (step === 2 && !d.goal) return 'Escolha o objetivo que mais combina com você agora.';
     if (step === 3 && !d.motivation) return 'Selecione a resposta que melhor descreve seu momento.';
     if (step === 4 && !d.activityLevel) return 'Como é seu movimento no dia a dia? Selecione uma opção.';
+    if (step === 5 && !d.targetWeight.trim()) return 'Informe seu peso-meta para personalizarmos seus cÃ¡lculos.';
+    if (step === 5 && !d.waterGoal.trim()) return 'Informe sua meta diÃ¡ria de Ã¡gua.';
+    if (step === 5 && (!Number.isFinite(decimal(d.waterGoal)) || Number(decimal(d.waterGoal)) < 0.5 || Number(decimal(d.waterGoal)) > 10)) return 'Informe uma meta de Ã¡gua entre 0,5 e 10 litros por dia.';
     if (step === 5) return measurementError(d.weight, d.height, d.targetWeight, d.goal);
     if (step === 6 && !d.restrictions.length) return 'Selecione suas preferências ou a opção Nenhuma.';
     if (step === 7 && !d.origin) return 'Conte por onde chegou até nós.';
@@ -96,7 +99,7 @@ export default function AboutYouScreen() {
       const result = await register({
         name: d.name.trim(), email: d.email.trim().toLowerCase(), password, birthDate: d.birthDate,
         sexo: d.sexo, goal: d.goal, activityLevel: d.activityLevel, weight: d.weight, height: d.height,
-        targetWeight: d.targetWeight, waterGoal: '', restrictions: d.restrictions.join(', '),
+        targetWeight: d.targetWeight, waterGoal: d.waterGoal.replace(',', '.'), restrictions: d.restrictions.join(', '),
         healthNote: d.healthNote, motivation: d.motivation, origin: d.origin, followupPreference: d.followupPreference,
         nutriCode: d.nutriCode, nutricionistaId: d.nutritionist?.id,
       });
@@ -160,10 +163,11 @@ export default function AboutYouScreen() {
     </>}
     {step === 4 && activities.map(option => <Choice key={option.label} {...option} selected={d.activityLevel === option.label} onPress={() => update({ activityLevel: option.label })} />)}
     {step === 5 && <>
-      <Field label="Peso atual (kg)" placeholder="Ex.: 70,5" value={d.weight} onChangeText={weight => update({ weight })} keyboardType="decimal-pad" maxLength={6} />
+      <Field label="Peso atual (kg)" placeholder="Ex.: 70,5" value={d.weight} onChangeText={weight => update({ weight, waterGoal: d.waterGoal || suggestedWaterGoal(weight, d.activityLevel) })} keyboardType="decimal-pad" maxLength={6} />
       <Field label="Altura (cm)" placeholder="Ex.: 170" value={d.height} onChangeText={height => update({ height })} keyboardType="decimal-pad" maxLength={6} />
-      {['Perder peso', 'Ganhar massa'].includes(d.goal) && <Field label="Peso desejado (opcional)" placeholder="Você pode decidir depois" value={d.targetWeight} onChangeText={targetWeight => update({ targetWeight })} keyboardType="decimal-pad" maxLength={6} />}
-      <Note>Mais do que números, queremos conhecer sua rotina. Um nutricionista pode ajudar a definir suas metas.</Note>
+      <Field label="Peso-meta (kg)" placeholder="Ex.: 65" value={d.targetWeight} onChangeText={targetWeight => update({ targetWeight })} keyboardType="decimal-pad" maxLength={6} />
+      <Field label="Meta de água por dia (litros)" placeholder={suggestedWaterGoal(d.weight, d.activityLevel)} value={d.waterGoal} onChangeText={waterGoal => update({ waterGoal })} keyboardType="decimal-pad" maxLength={4} />
+      <Note>Usaremos peso, altura, idade, objetivo e atividade física para estimar suas calorias. A água sugerida considera seu peso e nível de atividade.</Note>
     </>}
     {step === 6 && <>
       {['Nenhuma', 'Vegetariana', 'Vegana', 'Sem lactose', 'Sem glúten', 'Outras'].map(label => <Choice key={label} label={label} multiple icon="restaurant-outline" selected={d.restrictions.includes(label)} onPress={() => toggleRestriction(label)} />)}

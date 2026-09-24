@@ -27,7 +27,7 @@ export function OnboardingShell({ title, subtitle, children, onBack, step, total
       <View style={styles.column}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={onBack} disabled={busy} style={[styles.back, { backgroundColor: C.primarySoft }]}><Ionicons name="arrow-back" size={20} color={accent} /></Pressable>
-          <BrandLogo width={125} />
+          <BrandLogo markOnly width={44} style={{ position: 'absolute', left: '50%', marginLeft: -22 }} />
           <Text style={{ color: C.textMuted, fontSize: 12, fontFamily: fonts.medium }}>{step !== undefined && total ? `${step + 1}/${total}` : ''}</Text>
         </View>
         {step !== undefined && total && <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: step + 1 }} style={[styles.track, { backgroundColor: C.border }]}><View style={{ width: `${((step + 1) / total) * 100}%`, height: 4, borderRadius: 2, backgroundColor: C.primary }} /></View>}
@@ -95,7 +95,7 @@ export function TextLink({ label, onPress, outlined = false }: { label: string; 
 
 const styles = StyleSheet.create({
   screen: { flex: 1 }, scroll: { flexGrow: 1, paddingHorizontal: 24, alignItems: 'center' }, column: { width: '100%', maxWidth: 480, flexGrow: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }, back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  header: { position: 'relative', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }, back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   track: { height: 4, borderRadius: 2, marginBottom: 28 }, body: { gap: 10 }, eyebrow: { fontSize: 10, letterSpacing: 1.8, fontWeight: '600' },
   title: { fontSize: 31, lineHeight: 38, fontWeight: '700', letterSpacing: -1.2 }, subtitle: { fontSize: 14, lineHeight: 22 }, fields: { gap: 12, marginTop: 18 },
   actions: { paddingTop: 24, gap: 8, marginTop: 'auto' }, error: { padding: 14, borderRadius: 14, fontSize: 13, lineHeight: 20 },

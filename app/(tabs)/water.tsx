@@ -1,18 +1,31 @@
 import { useAuth } from '@/context/auth';
 import { usePremiumTheme } from '@/context/theme';
 import { useAppLayout } from '@/hooks/useAppLayout';
-import { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { suggestedWaterGoal } from '@/utils/onboarding';
+import { DiaryAPI, type WaterEntry } from '@/services/api';
 
 export default function WaterScreen() {
   const { colors: C } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const { user } = useAuth();
-  const goalMl = parseFloat(user?.waterGoal || '2') * 1000;
-  const [currentMl, setCurrentMl] = useState(600);
+  const goalMl = parseFloat((user?.waterGoal || suggestedWaterGoal(user?.weight || '', user?.activityLevel || '')).replace(',', '.')) * 1000;
+  const [entries, setEntries] = useState<WaterEntry[]>([]);
+  const currentMl = entries.reduce((total, entry) => total + entry.amountMl, 0);
   const pct = Math.min(Math.round((currentMl / goalMl) * 100), 100);
   const done = currentMl >= goalMl;
+  const loadEntries = async () => setEntries(await DiaryAPI.water());
+  useEffect(() => { loadEntries().catch(() => Alert.alert('Erro', 'Não foi possível carregar seus registros de água.')); }, []);
+  const addWater = async (ml: number) => {
+    try { await DiaryAPI.addWater(ml); await loadEntries(); }
+    catch (error) { Alert.alert('Erro', error instanceof Error ? error.message : 'Não foi possível registrar a água.'); }
+  };
+  const resetDay = async () => {
+    try { await DiaryAPI.resetWater(); setEntries([]); }
+    catch (error) { Alert.alert('Erro', error instanceof Error ? error.message : 'Não foi possível resetar o dia.'); }
+  };
 
   const card = { backgroundColor: C.surface, borderRadius: 20, padding: 18, marginBottom: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 } as const;
@@ -60,7 +73,7 @@ export default function WaterScreen() {
       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
         {[150, 200, 300, 500].map(ml => (
           <TouchableOpacity key={ml} style={[card, { flex: 1, alignItems: 'center', paddingVertical: 14, marginBottom: 0 }]}
-            onPress={() => setCurrentMl(p => Math.min(p + ml, goalMl + 500))}>
+            onPress={() => addWater(ml)}>
             <Ionicons name="add-circle-outline" size={20} color={C.primary} />
             <Text style={{ fontSize: 13, fontWeight: '700', color: C.text, marginTop: 4 }}>{ml}ml</Text>
           </TouchableOpacity>
@@ -70,20 +83,21 @@ export default function WaterScreen() {
       {/* Registros */}
       <Text style={{ fontSize: 11, fontWeight: '700', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Registros de hoje</Text>
       <View style={card}>
-        {[{ time: '07:30', ml: 200 }, { time: '09:15', ml: 200 }, { time: '11:00', ml: 200 }].map((r, i, arr) => (
+        {entries.map((r, i, arr) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
             ...(i < arr.length - 1 ? { borderBottomWidth: 1, borderBottomColor: C.border } : {}) }}>
             <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="water-outline" size={16} color={C.primary} />
             </View>
-            <Text style={{ flex: 1, fontSize: 14, color: C.textMuted }}>{r.time}</Text>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>{r.ml}ml</Text>
+            <Text style={{ flex: 1, fontSize: 14, color: C.textMuted }}>{new Date(r.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>{r.amountMl}ml</Text>
           </View>
         ))}
+        {!entries.length && <Text style={{ color: C.textMuted, fontSize: 13 }}>Nenhum consumo registrado hoje.</Text>}
       </View>
 
       <TouchableOpacity style={{ borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: C.border, marginTop: 4 }}
-        onPress={() => setCurrentMl(0)}>
+        onPress={resetDay}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: C.textMuted }}>Resetar dia</Text>
       </TouchableOpacity>
       <View style={{ height: 100 }} />

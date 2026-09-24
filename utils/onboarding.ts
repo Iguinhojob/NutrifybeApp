@@ -29,6 +29,50 @@ export function ageFromBirthDate(value: string, today = new Date()): number | nu
   return age >= 0 && age <= 120 ? age : null;
 }
 
+const ACTIVITY_FACTORS: Record<string, number> = {
+  'Sedentário': 1.2,
+  'Leve': 1.375,
+  'Moderado': 1.55,
+  'Intenso': 1.725,
+  'Muito intenso': 1.9,
+};
+
+export function calculateCalorieGoal(data: {
+  weight: string;
+  height: string;
+  birthDate: string;
+  sexo: string;
+  activityLevel: string;
+  goal: string;
+  targetWeight: string;
+}) {
+  const weight = decimal(data.weight);
+  const height = decimal(data.height);
+  const age = ageFromBirthDate(data.birthDate);
+  if (!Number.isFinite(weight) || !Number.isFinite(height) || age === null) return 1840;
+
+  const sexAdjustment = data.sexo === 'Masculino' ? 5 : data.sexo === 'Feminino' ? -161 : -78;
+  const basal = 10 * weight + 6.25 * height - 5 * age + sexAdjustment;
+  const activity = ACTIVITY_FACTORS[data.activityLevel] ?? 1.2;
+  const maintenance = basal * activity;
+  const target = decimal(data.targetWeight);
+  const difference = Number.isFinite(target) ? target - weight : 0;
+  const adjustment = data.goal === 'Perder peso'
+    ? 1 - Math.min(0.2, Math.max(0.1, Math.abs(Math.min(difference, 0)) * 0.01))
+    : data.goal === 'Ganhar massa'
+      ? 1 + Math.min(0.15, Math.max(0.1, Math.max(difference, 0) * 0.01))
+      : 1;
+
+  return Math.max(1200, Math.round(maintenance * adjustment));
+}
+
+export function suggestedWaterGoal(weight: string, activityLevel: string) {
+  const value = decimal(weight);
+  if (!Number.isFinite(value)) return '2';
+  const extra = ['Moderado', 'Intenso', 'Muito intenso'].includes(activityLevel) ? 0.3 : activityLevel === 'Leve' ? 0.15 : 0;
+  return (Math.round((value * 0.035 + extra) * 10) / 10).toFixed(1).replace('.', ',');
+}
+
 export function measurementError(weight: string, height: string, target: string, goal: string) {
   const w = decimal(weight), h = decimal(height), t = decimal(target);
   if (!Number.isFinite(w) || w < 20 || w > 500) return 'Confira seu peso em kg (entre 20 e 500).';
