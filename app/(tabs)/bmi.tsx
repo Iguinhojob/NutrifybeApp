@@ -50,6 +50,15 @@ export default function BMIScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 20, paddingTop: topPad }}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Voltar"
+        onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 8, paddingRight: 14, marginBottom: 3 }}
+      >
+        <Ionicons name="arrow-back" size={20} color={C.primary} />
+        <Text style={{ color: C.primary, fontWeight: '800' }}>Voltar</Text>
+      </TouchableOpacity>
       <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5, marginBottom: 4 }}>IMC</Text>
       <Text style={{ fontSize: 14, color: C.textMuted, marginBottom: 20 }}>Índice de Massa Corporal</Text>
 

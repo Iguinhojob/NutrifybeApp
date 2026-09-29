@@ -1,4 +1,5 @@
 import { AuthProvider } from '@/context/auth';
+import { DiaryProvider } from '@/context/diary';
 import { OnboardingProvider } from '@/context/onboarding';
 import { ThemeProvider, usePremiumTheme } from '@/context/theme';
 import { Stack } from 'expo-router';
@@ -25,6 +26,8 @@ function AppStack() {
         <Stack.Screen name="institutional/terms"    options={{ headerShown: true, title: 'Termos e Condições',      headerTintColor: colors.primary, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />
         <Stack.Screen name="institutional/settings"  options={{ headerShown: true, title: 'Configurações',           headerTintColor: colors.primary, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />
         <Stack.Screen name="nutri/request"             options={{ headerShown: true, title: 'Solicitar Vínculo',       headerTintColor: colors.primary, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />
+        <Stack.Screen name="nutri/directory"           options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="nutri/professional"        options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="nutri/plan-history"        options={{ headerShown: true, title: 'Histórico do Plano',      headerTintColor: colors.primary, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />
         <Stack.Screen name="nutri/review"              options={{ headerShown: true, title: 'Avaliar Nutricionista',   headerTintColor: colors.primary, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />
         <Stack.Screen name="nutri/tracking"            options={{ headerShown: true, title: 'Registro de Medidas',     headerTintColor: colors.primary, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />
@@ -39,9 +42,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <OnboardingProvider>
-        <AppStack />
-        </OnboardingProvider>
+        <DiaryProvider>
+          <OnboardingProvider>
+            <AppStack />
+          </OnboardingProvider>
+        </DiaryProvider>
       </AuthProvider>
     </ThemeProvider>
   );

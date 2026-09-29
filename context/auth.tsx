@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useRef, useState } from 'react';
-import { DEMO_MODE, DEMO_NUTRITIONIST, findNutritionist } from '@/services/demo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEMO_MODE, findDemoNutritionistById, findNutritionist } from '@/services/demo';
 import { ageFromBirthDate, isValidEmail, isValidPassword, measurementError } from '@/utils/onboarding';
 import { PacientesAPI, NutricionistasAPI, SolicitacoesAPI } from '@/services/api';
 import type { Paciente, Nutricionista } from '@/services/api';
@@ -82,6 +83,9 @@ export type RegisterData = {
   nutricionistaId?: number;
 };
 
+type LocalProfile = User & { password: string };
+const LOCAL_PROFILES_KEY = 'nutrifybe:local-profiles:v1';
+
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -108,8 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
-  // Demo profiles live only in memory and never include passwords.
-  const demoProfiles = useRef(new Map<string, User>());
+  const demoProfiles = useRef(new Map<string, LocalProfile>());
+  const loadLocalProfiles = async () => {
+    const raw = await AsyncStorage.getItem(LOCAL_PROFILES_KEY);
+    if (!raw) return;
+    const profiles = JSON.parse(raw) as LocalProfile[];
+    demoProfiles.current = new Map(profiles.map(profile => [profile.email.toLowerCase(), profile]));
+  };
+  const saveLocalProfiles = () => AsyncStorage.setItem(LOCAL_PROFILES_KEY, JSON.stringify([...demoProfiles.current.values()]));
 
   // ── Login ──────────────────────────────────────────────────────────────────
   const login = async (email: string, senha: string): Promise<boolean> => {
@@ -118,12 +128,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (DEMO_MODE) {
         const normalized = email.trim().toLowerCase();
-        const u = demoProfiles.current.get(normalized) ?? {
-          id: 1, name: 'Visitante', email: normalized, weight: '70', height: '170', goal: 'Melhorar saúde',
-          activityLevel: 'Leve', waterGoal: '2', nutricionistaId: null,
-        };
+        await loadLocalProfiles();
+        const profile = demoProfiles.current.get(normalized);
+        if (!profile || profile.password !== senha) { setError('E-mail ou senha inválidos.'); return false; }
+        const { password: _password, ...u } = profile;
         setUser(u);
-        setVinculo(u.nutricionistaId ? { nutricionista: DEMO_NUTRITIONIST, status: 'ativo' } : null);
+        setVinculo(u.nutricionistaId ? { nutricionista: findDemoNutritionistById(u.nutricionistaId), status: 'ativo' } : null);
         return true;
       }
       const paciente = await PacientesAPI.login(email, senha);
@@ -171,19 +181,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (DEMO_MODE) {
         const email = data.email.trim().toLowerCase();
+        await loadLocalProfiles();
         if (demoProfiles.current.has(email)) return { success: false, error: 'Este e-mail já foi usado nesta demonstração. Entre na conta ou use outro.' };
         const nutri = data.nutricionistaId ? await findNutritionist(data.nutriCode ?? '') : null;
         if (data.nutricionistaId && nutri?.id !== data.nutricionistaId) return { success: false, error: 'Confira novamente o código do nutricionista.' };
-        const u: User = {
+        const u: LocalProfile = {
           id: Date.now(), name: data.name.trim(), email, birthDate: data.birthDate, sexo: data.sexo,
           weight: data.weight.replace(',', '.'), height: data.height.replace(',', '.'),
           targetWeight: data.targetWeight.replace(',', '.'), waterGoal: data.waterGoal, goal: data.goal,
           activityLevel: data.activityLevel, restrictions: data.restrictions, origin: data.origin,
           motivation: data.motivation, healthNote: data.healthNote, followupPreference: data.followupPreference,
-          nutriCode: data.nutriCode, nutricionistaId: nutri?.id ?? null,
+          nutriCode: data.nutriCode, nutricionistaId: nutri?.id ?? null, password: data.password,
         };
         demoProfiles.current.set(email, u);
-        setUser(u);
+        await saveLocalProfiles();
+        const { password: _password, ...localUser } = u;
+        setUser(localUser);
         setVinculo(nutri ? { nutricionista: nutri, status: 'ativo' } : null);
         if (nutri) addNotificacao('vinculo_aceito', 'Vínculo de demonstração', `Seu perfil está conectado a ${nutri.nome} nesta prévia.`);
         return { success: true };
@@ -252,7 +265,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!nutri) return { success: false, error: 'Código não encontrado. Na demonstração, use 1234.' };
         const updated = { ...user, nutricionistaId: nutri.id, nutriCode: crn };
         setUser(updated);
-        demoProfiles.current.set(user.email.toLowerCase(), updated);
+        const existing = demoProfiles.current.get(user.email.toLowerCase());
+        if (existing) { demoProfiles.current.set(user.email.toLowerCase(), { ...existing, ...updated }); await saveLocalProfiles(); }
         setVinculo({ nutricionista: nutri, status: 'ativo' });
         return { success: true };
       }
@@ -314,7 +328,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateUser = (data: Partial<User>) => {
     if (!user) return;
     const updated = { ...user, ...data };
-    if (DEMO_MODE) demoProfiles.current.set(updated.email.toLowerCase(), updated);
+    if (DEMO_MODE) {
+      const existing = demoProfiles.current.get(updated.email.toLowerCase());
+      if (existing) { demoProfiles.current.set(updated.email.toLowerCase(), { ...existing, ...updated }); void saveLocalProfiles(); }
+    }
     setUser(updated);
   };
 

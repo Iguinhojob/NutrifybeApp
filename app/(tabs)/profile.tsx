@@ -6,32 +6,49 @@ import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+const ACTIVITIES = ['Sedentário', 'Leve', 'Moderado', 'Intenso', 'Muito intenso'];
+const PREFERENCES = ['Nenhuma', 'Vegetariana', 'Vegana', 'Sem lactose', 'Sem glúten', 'Outras'];
+const MOMENTS: Record<string, string[]> = {
+  'Perder peso': ['Organizar as refeições', 'Encontrar constância', 'Entender meus hábitos'],
+  'Ganhar massa': ['Não treino', 'Estou começando', 'Já treino regularmente', 'Quero retomar meus treinos'],
+  'Manter peso': ['Horários das refeições', 'Variedade no prato', 'Alimentação e movimento'],
+  'Melhorar saúde': ['Ter mais disposição', 'Variar minha alimentação', 'Organizar minha rotina'],
+};
+
 export default function ProfileScreen() {
   const { user, updateUser, logout } = useAuth();
   const { colors, isDark, toggleTheme } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const [editing, setEditing]         = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
-  const [form, setForm] = useState({ name: '', weight: '', height: '', goal: '', targetWeight: '', waterGoal: '' });
+  const [nutritionModal, setNutritionModal] = useState(false);
+  const [form, setForm] = useState({ name: '' });
+  const [nutritionForm, setNutritionForm] = useState({ activityLevel: '', motivation: '', restrictions: [] as string[] });
 
   useEffect(() => {
-    if (user) setForm({ name: user.name || '', weight: user.weight || '', height: user.height || '', goal: user.goal || '', targetWeight: user.targetWeight || '', waterGoal: user.waterGoal || '' });
+    if (user) setForm({ name: user.name || '' });
   }, [user]);
 
   const set = (key: string) => (val: string) => setForm(f => ({ ...f, [key]: val }));
   const save = () => { if (!form.name.trim()) return Alert.alert('Erro', 'Nome não pode ser vazio.'); updateUser(form); setEditing(false); Alert.alert('Sucesso', 'Perfil atualizado!'); };
-  const cancelEdit = () => { if (user) setForm({ name: user.name || '', weight: user.weight || '', height: user.height || '', goal: user.goal || '', targetWeight: user.targetWeight || '', waterGoal: user.waterGoal || '' }); setEditing(false); };
+  const cancelEdit = () => { if (user) setForm({ name: user.name || '' }); setEditing(false); };
   const handleLogout = () => { logout(); router.replace('/auth/login'); };
-  const bmi = user?.weight && user?.height ? (parseFloat(user.weight) / Math.pow(parseFloat(user.height) / 100, 2)).toFixed(1) : '—';
-
-  const FIELDS = [
-    { key: 'name',         label: 'Nome',            keyboard: 'default' as const },
-    { key: 'weight',       label: 'Peso (kg)',        keyboard: 'numeric' as const },
-    { key: 'height',       label: 'Altura (cm)',      keyboard: 'numeric' as const },
-    { key: 'targetWeight', label: 'Peso meta (kg)',   keyboard: 'numeric' as const },
-    { key: 'waterGoal',    label: 'Meta de água (L)', keyboard: 'numeric' as const },
-    { key: 'goal',         label: 'Objetivo',         keyboard: 'default' as const },
-  ];
+  const editNutritionProfile = () => {
+    if (!user) return;
+    setNutritionForm({ activityLevel: user.activityLevel || '', motivation: user.motivation || '', restrictions: user.restrictions ? user.restrictions.split(',').map(item => item.trim()).filter(Boolean) : [] });
+    setNutritionModal(true);
+  };
+  const togglePreference = (label: string) => setNutritionForm(prev => {
+    if (label === 'Nenhuma') return { ...prev, restrictions: ['Nenhuma'] };
+    const current = prev.restrictions.filter(item => item !== 'Nenhuma' && !(label === 'Vegetariana' && item === 'Vegana') && !(label === 'Vegana' && item === 'Vegetariana'));
+    return { ...prev, restrictions: current.includes(label) ? current.filter(item => item !== label) : [...current, label] };
+  });
+  const saveNutritionProfile = () => {
+    if (!nutritionForm.activityLevel || !nutritionForm.motivation || !nutritionForm.restrictions.length) return Alert.alert('Confira as respostas', 'Preencha atividade diária, seu momento e preferências alimentares.');
+    updateUser({ activityLevel: nutritionForm.activityLevel, motivation: nutritionForm.motivation, restrictions: nutritionForm.restrictions.join(', ') });
+    setNutritionModal(false);
+    Alert.alert('Perfil atualizado', 'Suas informações nutricionais foram alteradas.');
+  };
 
   const menuItems = [
     { icon: 'person-add-outline' as const, label: user?.nutricionistaId ? 'Meu nutricionista' : 'Vincular nutricionista', onPress: () => router.push(user?.nutricionistaId ? '/(tabs)/plan' : '/auth/nutri-code') },
@@ -53,31 +70,12 @@ export default function ProfileScreen() {
           </View>
           <Text style={[s.userName,  { color: colors.text }]}>{user?.name}</Text>
           <Text style={[s.userEmail, { color: colors.textMuted }]}>{user?.email}</Text>
-          <View style={[s.goalBadge, { backgroundColor: '#F0FDF4', borderColor: colors.primary + '40' }]}>
-            <Text style={[s.goalBadgeText, { color: colors.primary }]}>{user?.goal || 'Sem objetivo'}</Text>
-          </View>
-        </View>
-
-        {/* Métricas */}
-        <View style={s.metricsRow}>
-          {[
-            { label: 'Peso',   value: user?.weight       ? `${user.weight}kg`       : '—' },
-            { label: 'Altura', value: user?.height       ? `${user.height}cm`       : '—' },
-            { label: 'IMC',    value: bmi },
-            { label: 'Meta',   value: user?.targetWeight ? `${user.targetWeight}kg` : '—' },
-          ].map(m => (
-            <View key={m.label} style={[s.metricCard, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
-              <Text style={[s.metricValue, { color: colors.primary }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{m.value}</Text>
-              <Text style={[s.metricLabel, { color: colors.textMuted }]}>{m.label}</Text>
-            </View>
-          ))}
         </View>
 
         <View style={[s.card, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
-          <Text style={[s.cardTitle, { color: colors.text, marginBottom: 12 }]}>Seu perfil nutricional</Text>
+          <View style={s.cardHeader}><Text style={[s.cardTitle, { color: colors.text }]}>Seu perfil nutricional</Text><TouchableOpacity onPress={editNutritionProfile}><Text style={[s.editBtn, { color: colors.primary }]}>Editar</Text></TouchableOpacity></View>
           {[
-            ['Nascimento', user?.birthDate], ['Sexo', user?.sexo], ['Atividade diária', user?.activityLevel],
-            ['Seu momento', user?.motivation], ['Preferências alimentares', user?.restrictions], ['Outros cuidados', user?.healthNote],
+            ['Atividade diária', user?.activityLevel], ['Seu momento', user?.motivation], ['Preferências alimentares', user?.restrictions],
           ].filter(([, value]) => !!value).map(([label, value]) => (
             <View key={label} style={[s.field, { borderBottomColor: colors.border }]}>
               <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{label}</Text>
@@ -94,14 +92,12 @@ export default function ProfileScreen() {
               <Text style={[s.editBtn, { color: colors.primary }]}>{editing ? 'Cancelar' : 'Editar'}</Text>
             </TouchableOpacity>
           </View>
-          {FIELDS.map(({ key, label, keyboard }) => (
-            <View key={key} style={[s.field, { borderBottomColor: colors.border }]}>
-              <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{label}</Text>
+          <View style={[s.field, { borderBottomColor: colors.border }]}>
+              <Text style={[s.fieldLabel, { color: colors.textMuted }]}>Nome</Text>
               {editing
-                ? <TextInput style={[s.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface2 }]} value={form[key as keyof typeof form]} onChangeText={set(key)} keyboardType={keyboard} placeholderTextColor={colors.textMuted} placeholder={label} autoCorrect={false} />
-                : <Text style={[s.fieldValue, { color: colors.text }]}>{user?.[key as keyof typeof user] || '—'}</Text>}
-            </View>
-          ))}
+                ? <TextInput style={[s.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface2 }]} value={form.name} onChangeText={set('name')} placeholderTextColor={colors.textMuted} placeholder="Nome" autoCorrect={false} />
+                : <Text style={[s.fieldValue, { color: colors.text }]}>{user?.name || '—'}</Text>}
+          </View>
           {editing && (
             <TouchableOpacity onPress={save} style={[s.saveBtn, { backgroundColor: colors.primary }]}>
               <Text style={s.saveBtnText}>Salvar alterações</Text>
@@ -137,6 +133,21 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
+        </Modal>
+
+        <Modal visible={nutritionModal} animationType="slide" presentationStyle="pageSheet">
+          <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 24, paddingBottom: 50 }}>
+            <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>Editar perfil nutricional</Text>
+            <Text style={{ color: colors.textMuted, marginTop: 5, marginBottom: 20 }}>Altere somente as informações exibidas neste cartão.</Text>
+            <Text style={[s.optionTitle, { color: colors.textMuted }]}>ATIVIDADE DIÁRIA</Text>
+            {ACTIVITIES.map(label => <TouchableOpacity key={label} onPress={() => setNutritionForm(prev => ({ ...prev, activityLevel: label }))} style={[s.option, { borderColor: nutritionForm.activityLevel === label ? colors.primary : colors.border, backgroundColor: nutritionForm.activityLevel === label ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.activityLevel === label ? colors.primary : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
+            <Text style={[s.optionTitle, { color: colors.textMuted, marginTop: 16 }]}>SEU MOMENTO</Text>
+            {(MOMENTS[user?.goal || ''] ?? MOMENTS['Melhorar saúde']).map(label => <TouchableOpacity key={label} onPress={() => setNutritionForm(prev => ({ ...prev, motivation: label }))} style={[s.option, { borderColor: nutritionForm.motivation === label ? colors.primary : colors.border, backgroundColor: nutritionForm.motivation === label ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.motivation === label ? colors.primary : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
+            <Text style={[s.optionTitle, { color: colors.textMuted, marginTop: 16 }]}>PREFERÊNCIAS ALIMENTARES</Text>
+            {PREFERENCES.map(label => <TouchableOpacity key={label} onPress={() => togglePreference(label)} style={[s.option, { borderColor: nutritionForm.restrictions.includes(label) ? colors.primary : colors.border, backgroundColor: nutritionForm.restrictions.includes(label) ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.restrictions.includes(label) ? colors.primary : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
+            <TouchableOpacity onPress={saveNutritionProfile} style={[s.saveBtn, { backgroundColor: colors.primary, marginTop: 22 }]}><Text style={s.saveBtnText}>Salvar alterações</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setNutritionModal(false)} style={{ padding: 15, alignItems: 'center' }}><Text style={{ color: colors.textMuted, fontWeight: '700' }}>Cancelar</Text></TouchableOpacity>
+          </ScrollView>
         </Modal>
 
         <View style={{ height: 100 }} />
@@ -181,4 +192,6 @@ const s = StyleSheet.create({
   modalBtnNoText:  { fontSize: 15, fontWeight: '700' },
   modalBtnYes:     { flex: 1, padding: 14, borderRadius: 14, alignItems: 'center' },
   modalBtnYesText: { fontSize: 15, color: '#fff', fontWeight: '700' },
+  optionTitle:      { fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 8 },
+  option:           { borderWidth: 1, borderRadius: 12, padding: 13, marginBottom: 8 },
 });

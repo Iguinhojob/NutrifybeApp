@@ -3,7 +3,7 @@ import { useAuth } from '@/context/auth';
 import { useOnboarding, type OnboardingDraft } from '@/context/onboarding';
 import { usePremiumTheme } from '@/context/theme';
 import { DEMO_MODE } from '@/services/demo';
-import { ageFromBirthDate, formatBirthDate, isValidEmail, isValidPassword, measurementError, passwordRules } from '@/utils/onboarding';
+import { ageFromBirthDate, formatBirthDate, isValidEmail, isValidPassword, measurementError, passwordRules, suggestedWaterGoal } from '@/utils/onboarding';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { type ComponentProps, useRef, useState } from 'react';
@@ -39,8 +39,8 @@ const adaptive: Record<string, { title: string; options: string[] }> = {
 };
 
 export default function AboutYouScreen() {
-  const { draft: d, update: updateDraft, reset } = useOnboarding();
-  const { register } = useAuth();
+  const { draft: d, editing, update: updateDraft, reset, finishEditing } = useOnboarding();
+  const { register, updateUser } = useAuth();
   const { colors: C, isDark } = usePremiumTheme();
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -53,6 +53,7 @@ export default function AboutYouScreen() {
   const first = d.name.trim().split(' ')[0];
   const question = adaptive[d.goal] ?? adaptive['Melhorar saúde'];
   const accent = isDark ? C.primaryLight : C.primaryDark;
+  const recommendedWater = suggestedWaterGoal(d.weight, d.activityLevel);
   const go = (next: number) => { Keyboard.dismiss(); setError(''); update({ step: next }); };
   const chooseSource = (origin: string) => {
     update({ origin, nutritionist: null, nutriCode: '', followupPreference: origin === 'Meu nutri está aqui' ? 'existing' : 'later' });
@@ -75,7 +76,12 @@ export default function AboutYouScreen() {
     if (step === 2 && !d.goal) return 'Escolha o objetivo que mais combina com você agora.';
     if (step === 3 && !d.motivation) return 'Selecione a resposta que melhor descreve seu momento.';
     if (step === 4 && !d.activityLevel) return 'Como é seu movimento no dia a dia? Selecione uma opção.';
-    if (step === 5) return measurementError(d.weight, d.height, d.targetWeight, d.goal);
+    if (step === 5) {
+      const measureError = measurementError(d.weight, d.height, d.targetWeight, d.goal);
+      if (measureError) return measureError;
+      const water = Number(d.waterGoal.replace(',', '.'));
+      if (!Number.isFinite(water) || water < 0.5 || water > 10) return 'Informe uma meta diária de água entre 0,5 e 10 litros.';
+    }
     if (step === 6 && !d.restrictions.length) return 'Selecione suas preferências ou a opção Nenhuma.';
     if (step === 7 && !d.origin) return 'Conte por onde chegou até nós.';
     if (step === 8 && !isValidEmail(d.email)) return 'Informe um e-mail válido, como voce@exemplo.com.';
@@ -88,6 +94,18 @@ export default function AboutYouScreen() {
     if (submitting.current) return;
     const message = validate();
     if (message) { setError(message); return; }
+    if (editing) {
+      if (step < 7) { go(step + 1); return; }
+      updateUser({
+        name: d.name.trim(), birthDate: d.birthDate, sexo: d.sexo, goal: d.goal, motivation: d.motivation,
+        activityLevel: d.activityLevel, weight: d.weight.replace(',', '.'), height: d.height.replace(',', '.'),
+        targetWeight: d.targetWeight.replace(',', '.'), waterGoal: d.waterGoal.replace(',', '.'), restrictions: d.restrictions.join(', '), healthNote: d.healthNote,
+        origin: d.origin, followupPreference: d.followupPreference, nutriCode: d.nutriCode,
+      });
+      finishEditing();
+      router.replace('/(tabs)/profile');
+      return;
+    }
     if (step < 8) { go(step + 1); return; }
     submitting.current = true;
     setBusy(true);
@@ -96,7 +114,7 @@ export default function AboutYouScreen() {
       const result = await register({
         name: d.name.trim(), email: d.email.trim().toLowerCase(), password, birthDate: d.birthDate,
         sexo: d.sexo, goal: d.goal, activityLevel: d.activityLevel, weight: d.weight, height: d.height,
-        targetWeight: d.targetWeight, waterGoal: '', restrictions: d.restrictions.join(', '),
+        targetWeight: d.targetWeight, waterGoal: d.waterGoal, restrictions: d.restrictions.join(', '),
         healthNote: d.healthNote, motivation: d.motivation, origin: d.origin, followupPreference: d.followupPreference,
         nutriCode: d.nutriCode, nutricionistaId: d.nutritionist?.id,
       });
@@ -136,17 +154,17 @@ export default function AboutYouScreen() {
     'Seu perfil está pronto. Falta criar seu acesso para começar.',
   ];
 
-  return <OnboardingShell title={titles[step]} subtitle={subtitles[step]} step={step} total={9}
+  return <OnboardingShell title={titles[step]} subtitle={subtitles[step]} step={step} total={editing ? 8 : 9}
     eyebrow={step < 2 ? 'VAMOS NOS CONHECER' : step < 7 ? 'UM PERFIL COM A SUA CARA' : 'QUASE LÁ'}
-    onBack={() => { if (step > 0) go(step - 1); else router.replace('/auth/welcome'); }}
-    action={step === 0 ? 'Vamos nos conhecer' : step === 8 ? 'Criar minha conta' : 'Continuar'}
+    onBack={() => { if (step > 0) go(step - 1); else if (editing) { finishEditing(); router.replace('/(tabs)/profile'); } else router.replace('/auth/welcome'); }}
+    action={editing && step === 7 ? 'Salvar alterações' : step === 0 ? 'Vamos nos conhecer' : step === 8 ? 'Criar minha conta' : 'Continuar'}
     onAction={next} busy={busy} error={error}
-    footer={step === 0 ? <TextLink label="Já tenho conta" onPress={() => router.push('/auth/login')} /> : <Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 11, paddingTop: 6 }}>Você pode voltar e ajustar suas respostas.</Text>}
+    footer={step === 0 && !editing ? <TextLink label="Já tenho conta" onPress={() => router.push('/auth/login')} /> : <Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 11, paddingTop: 6 }}>Você pode voltar e ajustar suas respostas.</Text>}
   >
     {step === 0 && <>
       <Field label="Como podemos chamar você?" placeholder="Seu nome" value={d.name} onChangeText={name => update({ name })} autoCapitalize="words" autoComplete="name" maxLength={80} returnKeyType="next" onSubmitEditing={next} />
       <Note>Primeiro, seu momento. Depois, sua rotina. No final, criamos juntos um perfil que faz sentido para você.</Note>
-      {DEMO_MODE && <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 18 }}>Modo demonstração: você pode usar dados fictícios. O perfil fica apenas nesta sessão.</Text>}
+      {DEMO_MODE && <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 18 }}>Modo local: seu perfil de teste fica salvo somente neste aparelho.</Text>}
     </>}
     {step === 1 && <>
       <Field label="Data de nascimento" placeholder="DD/MM/AAAA" value={d.birthDate} onChangeText={value => update({ birthDate: formatBirthDate(value) })} keyboardType="number-pad" maxLength={10} />
@@ -162,8 +180,17 @@ export default function AboutYouScreen() {
     {step === 5 && <>
       <Field label="Peso atual (kg)" placeholder="Ex.: 70,5" value={d.weight} onChangeText={weight => update({ weight })} keyboardType="decimal-pad" maxLength={6} />
       <Field label="Altura (cm)" placeholder="Ex.: 170" value={d.height} onChangeText={height => update({ height })} keyboardType="decimal-pad" maxLength={6} />
-      {['Perder peso', 'Ganhar massa'].includes(d.goal) && <Field label="Peso desejado (opcional)" placeholder="Você pode decidir depois" value={d.targetWeight} onChangeText={targetWeight => update({ targetWeight })} keyboardType="decimal-pad" maxLength={6} />}
-      <Note>Mais do que números, queremos conhecer sua rotina. Um nutricionista pode ajudar a definir suas metas.</Note>
+      <Field label="Peso desejado (kg)" placeholder="Ex.: 65" value={d.targetWeight} onChangeText={targetWeight => update({ targetWeight })} keyboardType="decimal-pad" maxLength={6} />
+      <Field label="Meta diária de água (L)" placeholder={`Sugestão: ${recommendedWater} L`} value={d.waterGoal} onChangeText={waterGoal => update({ waterGoal })} keyboardType="decimal-pad" maxLength={4} />
+      <Pressable onPress={() => update({ waterGoal: String(recommendedWater).replace('.', ',') })} style={{ backgroundColor: C.primarySoft, borderRadius: 14, padding: 14, gap: 5 }}>
+        <Text style={{ color: accent, fontWeight: '800' }}>Sugestão inicial: {recommendedWater} L por dia</Text>
+        <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 18 }}>Calculada por 35 ml/kg mais um ajuste pelo seu nível de atividade. Toque aqui para usar essa quantidade.</Text>
+      </Pressable>
+      <View style={{ backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 }}>
+        <Text style={{ color: C.text, fontWeight: '800' }}>Fatores que podem aumentar a necessidade</Text>
+        <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 18 }}>Exercício e suor, clima quente, febre, vômitos ou diarreia, gestação e amamentação. Condições renais ou cardíacas podem exigir orientação individual.</Text>
+      </View>
+      <Note>Esses dados definem uma estimativa inicial de calorias. Um nutricionista pode ajustar sua meta.</Note>
     </>}
     {step === 6 && <>
       {['Nenhuma', 'Vegetariana', 'Vegana', 'Sem lactose', 'Sem glúten', 'Outras'].map(label => <Choice key={label} label={label} multiple icon="restaurant-outline" selected={d.restrictions.includes(label)} onPress={() => toggleRestriction(label)} />)}
@@ -176,7 +203,7 @@ export default function AboutYouScreen() {
     </>}
     {step === 8 && <>
       <Note>{d.goal} · Atividade: {d.activityLevel}.{d.nutritionist ? ` Conectar com ${d.nutritionist.nome} ao criar a conta.` : ' Você pode conectar um nutricionista depois.'}</Note>
-      <Field label="E-mail" placeholder="voce@exemplo.com" value={d.email} onChangeText={email => update({ email })} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" maxLength={254} />
+      <Field label="E-mail" placeholder="Insira seu e-mail" value={d.email} onChangeText={email => update({ email })} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" maxLength={254} />
       <Field label="Criar senha" placeholder="Use uma senha forte" value={password} onChangeText={setPassword} secret autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" />
       <Field label="Confirmar senha" placeholder="Repita a senha" value={confirmation} onChangeText={setConfirmation} secret autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" />
       <View style={{ gap: 8 }}>
