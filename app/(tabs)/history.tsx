@@ -1,67 +1,11 @@
-import { usePremiumTheme } from '@/context/theme';
+import { useDiary } from '@/context/diary';
 import { useAppLayout } from '@/hooks/useAppLayout';
-import { useAuth } from '@/context/auth';
-import { DiaryAPI, recentLocalDates } from '@/services/api';
-import { calculateCalorieGoal } from '@/utils/onboarding';
-import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
-
-type DayRecord = { date: string; day: string; status: 'green' | 'yellow' | 'red' | 'empty'; label: string; calories: number };
-const DAY_NAMES = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+import { usePremiumTheme } from '@/context/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { ScrollView, Text, View } from 'react-native';
 
 export default function HistoryScreen() {
-  const { colors: C } = usePremiumTheme();
-  const { topPad } = useAppLayout();
-  const { user } = useAuth();
-  const [history, setHistory] = useState<DayRecord[]>([]);
-  const calorieGoal = calculateCalorieGoal({ weight: user?.weight || '', height: user?.height || '', birthDate: user?.birthDate || '', sexo: user?.sexo || '', activityLevel: user?.activityLevel || '', goal: user?.goal || '', targetWeight: user?.targetWeight || '' });
-
-  useEffect(() => {
-    Promise.all(recentLocalDates(7).map(async date => {
-      const entries = await DiaryAPI.meals(date);
-      const calories = Math.round(entries.reduce((sum, entry) => sum + Number(entry.calories), 0));
-      const dayDate = new Date(`${date}T12:00:00`);
-      const status = calories === 0 ? 'empty' : calories <= calorieGoal * 1.05 ? 'green' : calories <= calorieGoal * 1.25 ? 'yellow' : 'red';
-      return { date: dayDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), day: DAY_NAMES[dayDate.getDay()], calories, status, label: status === 'empty' ? 'Sem dados' : status === 'green' ? 'Dentro da meta' : status === 'yellow' ? 'Acima da meta' : 'Muito acima' } as DayRecord;
-    })).then(setHistory).catch(error => Alert.alert('Erro', error instanceof Error ? error.message : 'Não foi possível carregar o histórico.'));
-  }, [calorieGoal]);
-
-  const statusStyles = {
-    green: { color: C.success, bg: C.surface2 },
-    yellow: { color: C.warning, bg: C.yellowLight },
-    red: { color: C.danger, bg: C.dangerLight },
-    empty: { color: C.textMuted, bg: C.surface2 },
-  };
-
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 20, paddingTop: topPad, gap: 10 }}>
-      <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5 }}>Histórico</Text>
-      <Text style={{ fontSize: 14, color: C.textMuted, marginBottom: 8 }}>Calorias registradas nos últimos sete dias</Text>
-      <View style={{ flexDirection: 'row', gap: 16, marginBottom: 4 }}>
-        {[{ color: C.success, label: 'Dentro da meta' }, { color: C.warning, label: 'Acima' }, { color: C.textMuted, label: 'Sem dados' }].map(item => (
-          <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: item.color }} />
-            <Text style={{ fontSize: 12, color: C.textMuted }}>{item.label}</Text>
-          </View>
-        ))}
-      </View>
-      {history.map(item => {
-        const style = statusStyles[item.status];
-        return <View key={item.date + item.day} style={{ backgroundColor: C.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14,
-          shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 }}>
-          <View style={{ width: 5, height: 44, borderRadius: 3, backgroundColor: style.color }} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>{item.day}</Text>
-            <Text style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>{item.date}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 4 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>{item.calories.toLocaleString('pt-BR')} kcal</Text>
-            <View style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: style.bg }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: style.color }}>{item.label}</Text>
-            </View>
-          </View>
-        </View>;
-      })}
-    </ScrollView>
-  );
+  const { allMeals, ready } = useDiary(); const { colors: C } = usePremiumTheme(); const { topPad } = useAppLayout();
+  const entries = Object.values(allMeals.reduce<Record<string, { date: Date; calories: number; meals: number }>>((acc, meal) => { const date = new Date(meal.createdAt); const key = date.toLocaleDateString('en-CA'); acc[key] ??= { date, calories: 0, meals: 0 }; acc[key].calories += meal.calories; acc[key].meals += 1; return acc; }, {})).sort((a, b) => b.date.getTime() - a.date.getTime());
+  return <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 20, paddingTop: topPad, gap: 10, paddingBottom: 100 }}><Text style={{ fontSize: 26, fontWeight: '900', color: C.text }}>Histórico</Text><Text style={{ fontSize: 14, color: C.textMuted, marginBottom: 10 }}>Dias em que você registrou refeições.</Text>{!ready ? <Text style={{ color: C.textMuted }}>Carregando registros…</Text> : entries.length === 0 ? <View style={{ backgroundColor: C.surface, padding: 30, borderRadius: 20, alignItems: 'center', gap: 8 }}><Ionicons name="calendar-outline" size={35} color={C.textDim} /><Text style={{ color: C.text, fontWeight: '800' }}>Nenhum histórico ainda</Text><Text style={{ color: C.textMuted, textAlign: 'center' }}>O histórico aparece quando você registrar refeições.</Text></View> : entries.map(entry => <View key={entry.date.toISOString()} style={{ backgroundColor: C.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center' }}><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{entry.date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text><Text style={{ color: C.textMuted, marginTop: 3 }}>{entry.meals} {entry.meals === 1 ? 'refeição registrada' : 'refeições registradas'}</Text></View><Text style={{ color: C.primary, fontWeight: '900' }}>{entry.calories} kcal</Text></View>)}</ScrollView>;
 }

@@ -77,8 +77,50 @@ export function measurementError(weight: string, height: string, target: string,
   const w = decimal(weight), h = decimal(height), t = decimal(target);
   if (!Number.isFinite(w) || w < 20 || w > 500) return 'Confira seu peso em kg (entre 20 e 500).';
   if (!Number.isFinite(h) || h < 80 || h > 250) return 'Confira sua altura em cm (entre 80 e 250).';
-  if (target && (!Number.isFinite(t) || t < 20 || t > 500)) return 'Confira o peso desejado ou deixe em branco para decidir depois.';
-  if (target && goal === 'Perder peso' && t >= w) return 'O peso desejado deve ser menor que o atual. Você também pode decidir depois.';
-  if (target && goal === 'Ganhar massa' && t <= w) return 'O peso desejado deve ser maior que o atual. Você também pode decidir depois.';
+  if (!target.trim()) return 'Informe seu peso desejado em kg.';
+  if (!Number.isFinite(t) || t < 20 || t > 500) return 'Confira o peso desejado em kg (entre 20 e 500).';
+  if (goal === 'Perder peso' && t >= w) return 'O peso desejado deve ser menor que o atual.';
+  if (goal === 'Ganhar massa' && t <= w) return 'O peso desejado deve ser maior que o atual.';
   return '';
+}
+
+export type CalorieGoalInput = {
+  weight: string; height: string; targetWeight?: string; birthDate?: string;
+  sexo?: string; activityLevel?: string; goal?: string;
+};
+
+// Mifflin-St Jeor + fator de atividade. A meta e uma estimativa inicial.
+export function calculateCalorieGoal(input: CalorieGoalInput) {
+  const weight = decimal(input.weight);
+  const height = decimal(input.height);
+  const target = decimal(input.targetWeight ?? '');
+  const age = ageFromBirthDate(input.birthDate ?? '') ?? 30;
+  if (![weight, height, target].every(Number.isFinite)) return 0;
+  const sexAdjustment = input.sexo === 'Masculino' ? 5 : input.sexo === 'Feminino' ? -161 : -78;
+  const activity: Record<string, number> = { 'Sedentário': 1.2, Leve: 1.375, Moderado: 1.55, Intenso: 1.725, 'Muito intenso': 1.9 };
+  const maintenance = (10 * weight + 6.25 * height - 5 * age + sexAdjustment) * (activity[input.activityLevel ?? ''] ?? 1.2);
+  const difference = Math.abs(target - weight);
+  const adjustment = difference < 0.5 ? 0 : difference >= 15 ? 500 : difference >= 7 ? 400 : 300;
+  const direction = input.goal === 'Perder peso' ? -1 : input.goal === 'Ganhar massa' ? 1 : 0;
+  return Math.max(1200, Math.round((maintenance + direction * adjustment) / 10) * 10);
+}
+
+export function calculateGoalProjection(input: CalorieGoalInput) {
+  const weight = decimal(input.weight);
+  const target = decimal(input.targetWeight ?? '');
+  if (![weight, target].every(Number.isFinite)) return null;
+  const difference = Math.abs(target - weight);
+  if (difference < 0.1 || input.goal === 'Manter peso') return { days: 0, date: null, difference };
+  if (input.goal !== 'Perder peso' && input.goal !== 'Ganhar massa') return null;
+  const dailyAdjustment = difference >= 15 ? 500 : difference >= 7 ? 400 : 300;
+  const days = Math.ceil((difference * 7700) / dailyAdjustment);
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return { days, date, difference };
+}
+
+export function suggestedWaterGoal(weight: string, activityLevel = '') {
+  const value = decimal(weight);
+  const activityExtra: Record<string, number> = { Leve: 0.3, Moderado: 0.5, Intenso: 0.7, 'Muito intenso': 1 };
+  return Number.isFinite(value) ? Math.round((value * 0.035 + (activityExtra[activityLevel] ?? 0)) * 10) / 10 : 2;
 }

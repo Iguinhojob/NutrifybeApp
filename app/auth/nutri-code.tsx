@@ -9,12 +9,12 @@ import { useRef, useState } from 'react';
 import { Text } from 'react-native';
 
 export default function NutriCodeScreen() {
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, code: initialCode } = useLocalSearchParams<{ mode?: string; code?: string }>();
   const onboarding = mode === 'onboarding';
   const { draft, update } = useOnboarding();
   const { user, solicitarVinculo } = useAuth();
   const { colors: C } = usePremiumTheme();
-  const [code, setCode] = useState(draft.nutriCode);
+  const [code, setCode] = useState(initialCode?.replace(/\D/g, '') || draft.nutriCode);
   const [selected, setSelected] = useState<Nutricionista | null>(null);
   const [deferred, setDeferred] = useState(false);
   const [linked, setLinked] = useState(false);
@@ -71,6 +71,6 @@ export default function NutriCodeScreen() {
     {selected && !deferred && <Note>{selected.nome}{'\n'}{selected.especialidade || 'Nutricionista'} · CRN {selected.crn}{DEMO_MODE ? '\nPerfil de demonstração' : ''}</Note>}
     {selected && onboarding && !deferred && <Text style={{ color: C.textMuted, fontSize: 13, lineHeight: 20 }}>A conexão será feita ao concluir a criação da sua conta.</Text>}
     {deferred && <Note>Você continua tendo acesso ao app. Quando estiver com o código, abra seu plano e toque em Vincular nutricionista.</Note>}
-    {DEMO_MODE && !deferred && !linked && <Note>Para testar, use o código {DEMO_NUTRI_CODE}. A conexão acontece somente nesta demonstração.</Note>}
+    {DEMO_MODE && !deferred && !linked && <Note>Catálogo local de testes. Você pode usar o código {DEMO_NUTRI_CODE} ou escolher um profissional na tela Plano.</Note>}
   </OnboardingShell>;
 }
