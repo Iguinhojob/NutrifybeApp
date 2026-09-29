@@ -25,6 +25,6 @@ export default function LoginScreen() {
     <Field label="E-mail" placeholder="voce@exemplo.com" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" />
     <Field label="Senha" placeholder="Sua senha" value={password} onChangeText={setPassword} secret autoCapitalize="none" autoCorrect={false} autoComplete="current-password" onSubmitEditing={() => enter()} />
     <TextLink label="Recuperar senha" onPress={() => router.push('/auth/forgot-password')} />
-    {DEMO_MODE && <Note>Modo demonstração: acesso livre, sem autenticação real. Evite usar sua senha pessoal.</Note>}
+    {DEMO_MODE && <Note>Modo demonstração: acesso livre, sem autenticação real. Evite usar sua senha pessoal</Note>}
   </OnboardingShell>;
 }
