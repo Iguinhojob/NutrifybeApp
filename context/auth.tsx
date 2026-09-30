@@ -2,7 +2,7 @@ import React, { createContext, useContext, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEMO_MODE, findDemoNutritionistById, findNutritionist } from '@/services/demo';
 import { ageFromBirthDate, isValidEmail, isValidPassword, measurementError } from '@/utils/onboarding';
-import { PacientesAPI, NutricionistasAPI, SolicitacoesAPI } from '@/services/api';
+import { PacientesAPI, NutricionistasAPI, SolicitacoesAPI, setAccessToken } from '@/services/api';
 import type { Paciente, Nutricionista } from '@/services/api';
 
 // ── Tipos do contexto ─────────────────────────────────────────────────────────
@@ -136,12 +136,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setVinculo(u.nutricionistaId ? { nutricionista: findDemoNutritionistById(u.nutricionistaId), status: 'ativo' } : null);
         return true;
       }
-      const paciente = await PacientesAPI.login(email, senha);
-      if (!paciente) {
+      const resposta = await PacientesAPI.login(email, senha);
+      if (!resposta?.paciente) {
         setError('Email ou senha inválidos.');
         return false;
       }
 
+      setAccessToken(resposta.token);
+      const paciente = resposta.paciente;
       const u = pacienteToUser(paciente);
       setUser(u);
 
@@ -202,6 +204,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: true };
       }
       // Verifica se email já existe
+      const resposta = await PacientesAPI.register({
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        birthDate: data.birthDate ?? '',
+        sexo: data.sexo ?? '',
+        weight: data.weight,
+        height: data.height,
+        targetWeight: data.targetWeight,
+        waterGoal: data.waterGoal,
+        goal: data.goal || 'Manter peso',
+        activityLevel: data.activityLevel ?? '',
+        restrictions: data.restrictions,
+        healthNote: data.healthNote,
+        motivation: data.motivation,
+        origin: data.origin,
+        followupPreference: data.followupPreference,
+      });
+      setAccessToken(resposta.token);
+      setUser(pacienteToUser(resposta.paciente));
+      return { success: true };
+
       const existing = await PacientesAPI.findByEmail(data.email);
       if (existing) {
         return { success: false, error: 'Este email já está cadastrado.' };
@@ -224,7 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await PacientesAPI.create(novoPaciente);
 
       // Busca o paciente recém-criado para pegar o ID
-      const criado = await PacientesAPI.findByEmail(data.email);
+      const criado = (await PacientesAPI.findByEmail(data.email))!;
       if (!criado) return { success: false, error: 'Erro ao criar conta.' };
 
       setUser({

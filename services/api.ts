@@ -17,6 +17,20 @@ export function recentLocalDates(count: number) {
 const normalizeDecimals = (values: Record<string, unknown>) => Object.fromEntries(
   Object.entries(values).map(([key, value]) => [key, typeof value === 'string' && ['weight', 'height', 'targetWeight', 'waterGoal'].includes(key) ? value.replace(',', '.') : value]),
 );
+const normalizeMeal = (value: any): MealEntry => ({
+  id: value.id,
+  mealType: value.mealType ?? value.nome ?? 'Refeição',
+  description: value.description ?? value.descricao ?? '',
+  calories: Number(value.calories ?? value.calorias ?? 0),
+  entryDate: value.entryDate ?? value.criadoEm ?? '',
+  createdAt: value.createdAt ?? value.criadoEm ?? '',
+});
+const normalizeWater = (value: any): WaterEntry => ({
+  id: value.id,
+  amountMl: Number(value.amountMl ?? value.quantidadeMl ?? 0),
+  entryDate: value.entryDate ?? value.criadoEm ?? '',
+  createdAt: value.createdAt ?? value.criadoEm ?? '',
+});
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
@@ -34,6 +48,7 @@ export type Paciente = {
   nome: string;
   email: string;
   idade: number;
+  senha?: string;
   dataNascimento?: string;
   sexo?: string;
   peso: number;
@@ -84,7 +99,15 @@ export const PacientesAPI = {
   login: (email: string, password: string) => request<AuthResponse>('/api/auth/login', {
     method: 'POST', body: JSON.stringify({ email, password }),
   }),
+  getAll: () => request<Paciente[]>('/api/pacientes'),
   getById: (id: number) => request<Paciente>(`/api/pacientes/${id}`),
+  findByEmail: async (email: string) => {
+    const pacientes = await request<Paciente[]>('/api/pacientes');
+    return pacientes.find(p => p.email.toLowerCase() === email.trim().toLowerCase()) ?? null;
+  },
+  create: (data: Partial<Paciente>) => request<{ success: boolean; paciente?: Paciente }>('/api/pacientes', {
+    method: 'POST', body: JSON.stringify(data),
+  }),
   update: (id: number, data: Record<string, unknown>) => request<Paciente>(`/api/pacientes/${id}`, {
     method: 'PUT', body: JSON.stringify(normalizeDecimals(data)),
   }),
@@ -104,21 +127,21 @@ export const NutricionistasAPI = {
 
 export const SolicitacoesAPI = {
   getAll: () => request<SolicitacaoPendente[]>('/api/solicitacoesPendentes'),
-  create: (solicitacao: Pick<SolicitacaoPendente, 'nutricionistaId'>) => request<SolicitacaoPendente>('/api/solicitacoesPendentes', {
-    method: 'POST', body: JSON.stringify({ nutritionistId: solicitacao.nutricionistaId }),
+  create: (solicitacao: Partial<SolicitacaoPendente>) => request<SolicitacaoPendente>('/api/solicitacoesPendentes', {
+    method: 'POST', body: JSON.stringify({ ...solicitacao, nutricionistaId: solicitacao.nutricionistaId }),
   }),
   delete: (id: number) => request<void>(`/api/solicitacoesPendentes/${id}`, { method: 'DELETE' }),
 };
 
 export const DiaryAPI = {
-  meals: (date = localDateString()) => request<MealEntry[]>(`/api/diario/refeicoes?date=${encodeURIComponent(date)}`),
-  addMeal: (data: Pick<MealEntry, 'mealType' | 'description' | 'calories'> & { entryDate?: string }) => request<MealEntry>('/api/diario/refeicoes', {
+  meals: async (date = localDateString()) => (await request<any[]>(`/api/diario/refeicoes?date=${encodeURIComponent(date)}`)).map(normalizeMeal),
+  addMeal: async (data: Pick<MealEntry, 'mealType' | 'description' | 'calories'> & { entryDate?: string }) => normalizeMeal(await request<any>('/api/diario/refeicoes', {
     method: 'POST', body: JSON.stringify({ ...data, entryDate: data.entryDate || localDateString() }),
-  }),
+  })),
   deleteMeal: (id: number) => request<void>(`/api/diario/refeicoes/${id}`, { method: 'DELETE' }),
-  water: (date = localDateString()) => request<WaterEntry[]>(`/api/diario/agua?date=${encodeURIComponent(date)}`),
-  addWater: (amountMl: number, entryDate = localDateString()) => request<WaterEntry>('/api/diario/agua', {
+  water: async (date = localDateString()) => (await request<any[]>(`/api/diario/agua?date=${encodeURIComponent(date)}`)).map(normalizeWater),
+  addWater: async (amountMl: number, entryDate = localDateString()) => normalizeWater(await request<any>('/api/diario/agua', {
     method: 'POST', body: JSON.stringify({ amountMl, entryDate }),
-  }),
+  })),
   resetWater: (date = localDateString()) => request<void>(`/api/diario/agua?date=${encodeURIComponent(date)}`, { method: 'DELETE' }),
 };

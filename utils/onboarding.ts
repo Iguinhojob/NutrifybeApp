@@ -37,7 +37,7 @@ const ACTIVITY_FACTORS: Record<string, number> = {
   'Muito intenso': 1.9,
 };
 
-export function calculateCalorieGoal(data: {
+function calculateCalorieGoalLegacy(data: {
   weight: string;
   height: string;
   birthDate: string;
@@ -66,7 +66,7 @@ export function calculateCalorieGoal(data: {
   return Math.max(1200, Math.round(maintenance * adjustment));
 }
 
-export function suggestedWaterGoal(weight: string, activityLevel: string) {
+function suggestedWaterGoalLegacy(weight: string, activityLevel: string) {
   const value = decimal(weight);
   if (!Number.isFinite(value)) return '2';
   const extra = ['Moderado', 'Intenso', 'Muito intenso'].includes(activityLevel) ? 0.3 : activityLevel === 'Leve' ? 0.15 : 0;
