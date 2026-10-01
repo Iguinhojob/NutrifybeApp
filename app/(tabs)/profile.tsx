@@ -20,6 +20,7 @@ export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const [editing, setEditing]         = useState(false);
+  const [saving, setSaving] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
   const [nutritionModal, setNutritionModal] = useState(false);
   const [form, setForm] = useState({ name: '' });
@@ -30,7 +31,19 @@ export default function ProfileScreen() {
   }, [user]);
 
   const set = (key: string) => (val: string) => setForm(f => ({ ...f, [key]: val }));
-  const save = () => { if (!form.name.trim()) return Alert.alert('Erro', 'Nome não pode ser vazio.'); updateUser(form); setEditing(false); Alert.alert('Sucesso', 'Perfil atualizado!'); };
+  const save = async () => {
+    if (!form.name.trim()) return Alert.alert('Erro', 'Nome não pode ser vazio.');
+    setSaving(true);
+    try {
+      await updateUser(form);
+      setEditing(false);
+      Alert.alert('Sucesso', 'Perfil atualizado!');
+    } catch {
+      Alert.alert('Erro ao salvar', 'Não foi possível atualizar seu perfil no servidor. Tente novamente.');
+    } finally {
+      setSaving(false);
+    }
+  };
   const cancelEdit = () => { if (user) setForm({ name: user.name || '' }); setEditing(false); };
   const handleLogout = () => { logout(); router.replace('/auth/login'); };
   const editNutritionProfile = () => {
@@ -43,15 +56,22 @@ export default function ProfileScreen() {
     const current = prev.restrictions.filter(item => item !== 'Nenhuma' && !(label === 'Vegetariana' && item === 'Vegana') && !(label === 'Vegana' && item === 'Vegetariana'));
     return { ...prev, restrictions: current.includes(label) ? current.filter(item => item !== label) : [...current, label] };
   });
-  const saveNutritionProfile = () => {
+  const saveNutritionProfile = async () => {
     if (!nutritionForm.activityLevel || !nutritionForm.motivation || !nutritionForm.restrictions.length) return Alert.alert('Confira as respostas', 'Preencha atividade diária, seu momento e preferências alimentares.');
-    updateUser({ activityLevel: nutritionForm.activityLevel, motivation: nutritionForm.motivation, restrictions: nutritionForm.restrictions.join(', ') });
-    setNutritionModal(false);
-    Alert.alert('Perfil atualizado', 'Suas informações nutricionais foram alteradas.');
+    setSaving(true);
+    try {
+      await updateUser({ activityLevel: nutritionForm.activityLevel, motivation: nutritionForm.motivation, restrictions: nutritionForm.restrictions.join(', ') });
+      setNutritionModal(false);
+      Alert.alert('Perfil atualizado', 'Suas informações nutricionais foram alteradas.');
+    } catch {
+      Alert.alert('Erro ao salvar', 'Não foi possível atualizar suas informações no servidor. Tente novamente.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const menuItems = [
-    { icon: 'person-add-outline' as const, label: user?.nutricionistaId ? 'Meu nutricionista' : 'Vincular nutricionista', onPress: () => router.push(user?.nutricionistaId ? '/(tabs)/plan' : '/auth/nutri-code') },
+    { icon: 'person-add-outline' as const, label: user?.nutricionistaId ? 'Meu nutricionista' : 'Vincular nutricionista', onPress: () => router.push(user?.nutricionistaId ? '/(tabs)/plan' : '/nutri/request') },
     { icon: 'sunny-outline'              as const, label: isDark ? 'Modo claro' : 'Modo escuro', onPress: toggleTheme },
     { icon: 'settings-outline'           as const, label: 'Configurações',           onPress: () => router.push('/institutional/settings') },
     { icon: 'information-circle-outline' as const, label: 'Sobre Nós',               onPress: () => router.push('/institutional/about') },
@@ -100,7 +120,7 @@ export default function ProfileScreen() {
           </View>
           {editing && (
             <TouchableOpacity onPress={save} style={[s.saveBtn, { backgroundColor: colors.primary }]}>
-              <Text style={s.saveBtnText}>Salvar alterações</Text>
+              <Text style={s.saveBtnText}>{saving ? 'Salvando…' : 'Salvar alterações'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -145,7 +165,7 @@ export default function ProfileScreen() {
             {(MOMENTS[user?.goal || ''] ?? MOMENTS['Melhorar saúde']).map(label => <TouchableOpacity key={label} onPress={() => setNutritionForm(prev => ({ ...prev, motivation: label }))} style={[s.option, { borderColor: nutritionForm.motivation === label ? colors.primary : colors.border, backgroundColor: nutritionForm.motivation === label ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.motivation === label ? colors.primary : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
             <Text style={[s.optionTitle, { color: colors.textMuted, marginTop: 16 }]}>PREFERÊNCIAS ALIMENTARES</Text>
             {PREFERENCES.map(label => <TouchableOpacity key={label} onPress={() => togglePreference(label)} style={[s.option, { borderColor: nutritionForm.restrictions.includes(label) ? colors.primary : colors.border, backgroundColor: nutritionForm.restrictions.includes(label) ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.restrictions.includes(label) ? colors.primary : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
-            <TouchableOpacity onPress={saveNutritionProfile} style={[s.saveBtn, { backgroundColor: colors.primary, marginTop: 22 }]}><Text style={s.saveBtnText}>Salvar alterações</Text></TouchableOpacity>
+            <TouchableOpacity onPress={saveNutritionProfile} disabled={saving} style={[s.saveBtn, { backgroundColor: colors.primary, marginTop: 22 }]}><Text style={s.saveBtnText}>{saving ? 'Salvando…' : 'Salvar alterações'}</Text></TouchableOpacity>
             <TouchableOpacity onPress={() => setNutritionModal(false)} style={{ padding: 15, alignItems: 'center' }}><Text style={{ color: colors.textMuted, fontWeight: '700' }}>Cancelar</Text></TouchableOpacity>
           </ScrollView>
         </Modal>

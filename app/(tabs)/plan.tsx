@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { useAuth } from '@/context/auth';
@@ -30,7 +30,9 @@ function todayIndex() {
 }
 
 export default function PlanScreen() {
-  const { vinculo } = useAuth();
+  const { vinculo, user, refreshUser } = useAuth();
+  const userId = user?.id;
+  useFocusEffect(useCallback(() => { if (userId) void refreshUser().catch(() => {}); }, [userId, refreshUser]));
   return vinculo?.status === 'ativo' ? <NutritionistPlan /> : <NutriaPlanScreen />;
 }
 
@@ -260,12 +262,23 @@ function NutriaPlanScreen() {
 
         {!!feedback && <View style={[styles.feedback, { backgroundColor: C.successSoft }]}><Ionicons name="checkmark-circle-outline" size={18} color={C.success} /><Text style={{ color: C.text, flex: 1, fontSize: 12 }}>{feedback}</Text></View>}
 
-        <TouchableOpacity onPress={() => router.push('/nutri/directory')} style={[styles.catalogCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+        <TouchableOpacity onPress={() => router.push('/auth/nutri-code')} style={[styles.catalogCard, { backgroundColor: C.surface, borderColor: C.border }]}>
           <View style={styles.catalogHeader}>
             <View style={[styles.catalogIcon, { backgroundColor: C.primarySoft }]}><Ionicons name="people-outline" size={22} color={C.primary} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.linkTitle, { color: C.text }]}>Não tem um nutricionista?</Text>
-              <Text style={[styles.linkSubtitle, { color: C.textMuted }]}>Abra o catálogo para conhecer perfis, especialidades e avaliações.</Text>
+              <Text style={[styles.linkTitle, { color: C.text }]}>Já conhece seu nutricionista?</Text>
+              <Text style={[styles.linkSubtitle, { color: C.textMuted }]}>Peça o ID da conta dele e envie uma solicitação de vínculo.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={C.primary} />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push('/nutri/directory')} style={[styles.catalogCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <View style={styles.catalogHeader}>
+            <View style={[styles.catalogIcon, { backgroundColor: C.primarySoft }]}><Ionicons name="search-outline" size={22} color={C.primary} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.linkTitle, { color: C.text }]}>Ver nutricionistas disponíveis</Text>
+              <Text style={[styles.linkSubtitle, { color: C.textMuted }]}>Explore os perfis e solicite acompanhamento a quem combinar com você.</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={C.primary} />
           </View>
@@ -371,7 +384,7 @@ function NutriaPlanScreen() {
           <Text style={[styles.modalText, { color: C.textMuted }]}>Este plano é uma sugestão automática e pode conter erros ou estimativas imprecisas. Não é diagnóstico, prescrição clínica nem substitui nutricionista ou médico.</Text>
           <View style={[styles.warningCard, { backgroundColor: C.warningSoft, borderColor: C.warning + '50', marginBottom: 0 }]}><Ionicons name="warning-outline" size={22} color={C.warning} /><Text style={[styles.warningText, { color: C.text }]}>Gestação, amamentação, diabetes, transtornos alimentares e doenças renais, hepáticas, cardíacas ou gastrointestinais exigem orientação individual.</Text></View>
           {hasUnstructuredHealthNeed ? <View style={[styles.healthBlock, { backgroundColor: C.dangerSoft, borderColor: C.danger + '50' }]}><Text style={{ color: C.danger, fontWeight: '900' }}>Geração indisponível por segurança</Text><Text style={[styles.modalText, { color: C.text }]}>Você informou: &quot;{user?.healthNote?.trim() || 'Outras necessidades alimentares'}&quot;.</Text><Text style={[styles.modalText, { color: C.textMuted }]}>A NutriIA local não consegue interpretar essa informação com segurança.</Text></View> : <><CheckRow checked={termsAccepted} onPress={() => setTermsAccepted(value => !value)} label="Li e compreendi que a sugestão pode conter erros e não substitui acompanhamento profissional." C={C} /><CheckRow checked={safetyAccepted} onPress={() => setSafetyAccepted(value => !value)} label="Confirmo que não tenho uma condição que exija dieta clínica individualizada, ou que já fui autorizado por profissional de saúde." C={C} /></>}
-          <View style={styles.modalActions}><TouchableOpacity onPress={() => setTermsVisible(false)} style={[styles.modalButton, { borderColor: C.border }]}><Text style={{ color: C.text, fontWeight: '800' }}>Cancelar</Text></TouchableOpacity>{hasUnstructuredHealthNeed ? <TouchableOpacity onPress={() => { setTermsVisible(false); router.push('/nutri/directory'); }} style={[styles.modalButton, { backgroundColor: C.primary, borderColor: C.primary }]}><Text style={{ color: '#fff', fontWeight: '800' }}>Ver nutricionistas</Text></TouchableOpacity> : <TouchableOpacity disabled={!termsAccepted || !safetyAccepted || creating} onPress={() => void createPlan()} style={[styles.modalButton, { backgroundColor: termsAccepted && safetyAccepted ? C.primary : C.border, borderColor: 'transparent' }]}>{creating ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>{plan ? 'Recriar plano' : 'Aceitar e criar'}</Text>}</TouchableOpacity>}</View>
+          <View style={styles.modalActions}><TouchableOpacity onPress={() => setTermsVisible(false)} style={[styles.modalButton, { borderColor: C.border }]}><Text style={{ color: C.text, fontWeight: '800' }}>Cancelar</Text></TouchableOpacity>{hasUnstructuredHealthNeed ? <TouchableOpacity onPress={() => { setTermsVisible(false); router.push('/auth/nutri-code'); }} style={[styles.modalButton, { backgroundColor: C.primary, borderColor: C.primary }]}><Text style={{ color: '#fff', fontWeight: '800' }}>Já tenho nutricionista</Text></TouchableOpacity> : <TouchableOpacity disabled={!termsAccepted || !safetyAccepted || creating} onPress={() => void createPlan()} style={[styles.modalButton, { backgroundColor: termsAccepted && safetyAccepted ? C.primary : C.border, borderColor: 'transparent' }]}>{creating ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>{plan ? 'Recriar plano' : 'Aceitar e criar'}</Text>}</TouchableOpacity>}</View>
         </ScrollView></View></View>
       </Modal>
 

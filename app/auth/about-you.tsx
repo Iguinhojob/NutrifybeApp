@@ -96,12 +96,17 @@ export default function AboutYouScreen() {
     if (message) { setError(message); return; }
     if (editing) {
       if (step < 7) { go(step + 1); return; }
-      updateUser({
-        name: d.name.trim(), birthDate: d.birthDate, sexo: d.sexo, goal: d.goal, motivation: d.motivation,
-        activityLevel: d.activityLevel, weight: d.weight.replace(',', '.'), height: d.height.replace(',', '.'),
-        targetWeight: d.targetWeight.replace(',', '.'), waterGoal: d.waterGoal.replace(',', '.'), restrictions: d.restrictions.join(', '), healthNote: d.healthNote,
-        origin: d.origin, followupPreference: d.followupPreference, nutriCode: d.nutriCode,
-      });
+      try {
+        await updateUser({
+          name: d.name.trim(), birthDate: d.birthDate, sexo: d.sexo, goal: d.goal, motivation: d.motivation,
+          activityLevel: d.activityLevel, weight: d.weight.replace(',', '.'), height: d.height.replace(',', '.'),
+          targetWeight: d.targetWeight.replace(',', '.'), waterGoal: d.waterGoal.replace(',', '.'), restrictions: d.restrictions.join(', '), healthNote: d.healthNote,
+          origin: d.origin, followupPreference: d.followupPreference, nutriCode: d.nutriCode,
+        });
+      } catch {
+        setError('NÃ£o foi possÃ­vel salvar as alteraÃ§Ãµes no servidor. Tente novamente.');
+        return;
+      }
       finishEditing();
       router.replace('/(tabs)/profile');
       return;

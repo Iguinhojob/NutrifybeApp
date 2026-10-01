@@ -17,6 +17,11 @@ export function recentLocalDates(count: number) {
 const normalizeDecimals = (values: Record<string, unknown>) => Object.fromEntries(
   Object.entries(values).map(([key, value]) => [key, typeof value === 'string' && ['weight', 'height', 'targetWeight', 'waterGoal'].includes(key) ? value.replace(',', '.') : value]),
 );
+const parseItems = (value: unknown) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value) return [];
+  try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+};
 const normalizeMeal = (value: any): MealEntry => ({
   id: value.id,
   mealType: value.mealType ?? value.nome ?? 'Refeição',
@@ -24,6 +29,12 @@ const normalizeMeal = (value: any): MealEntry => ({
   calories: Number(value.calories ?? value.calorias ?? 0),
   entryDate: value.entryDate ?? value.criadoEm ?? '',
   createdAt: value.createdAt ?? value.criadoEm ?? '',
+  carbs: value.carbs == null && value.carboidratos == null ? undefined : Number(value.carbs ?? value.carboidratos),
+  protein: value.protein == null && value.proteinas == null ? undefined : Number(value.protein ?? value.proteinas),
+  fat: value.fat == null && value.gorduras == null ? undefined : Number(value.fat ?? value.gorduras),
+  items: parseItems(value.items ?? value.itens),
+  source: value.source ?? value.origem,
+  referenceId: value.referenceId ?? value.referenciaId,
 });
 const normalizeWater = (value: any): WaterEntry => ({
   id: value.id,
@@ -75,12 +86,14 @@ export type RegisterPayload = {
   name: string; email: string; password: string; birthDate: string; sexo: string;
   weight: string; height: string; targetWeight: string; waterGoal: string; goal: string;
   activityLevel: string; restrictions?: string; healthNote?: string; motivation?: string;
-  origin?: string; followupPreference?: string;
+  origin?: string; followupPreference?: string; nutricionistaId?: number;
 };
 
 export type AuthResponse = { token: string; paciente: Paciente };
-export type MealEntry = { id: number; mealType: string; description: string; calories: number; entryDate: string; createdAt: string };
+export type MealEntry = { id: number; mealType: string; description: string; calories: number; entryDate: string; createdAt: string; carbs?: number; protein?: number; fat?: number; items?: unknown[]; source?: string; referenceId?: string };
 export type WaterEntry = { id: number; amountMl: number; entryDate: string; createdAt: string };
+export type MeasurementEntry = { id: number; weight?: string; waist?: string; hip?: string; arm?: string; bodyFat?: string; createdAt: string };
+const normalizeMeasurement = (value: any): MeasurementEntry => ({ id: value.id, weight: value.weight ?? value.peso, waist: value.waist ?? value.cintura, hip: value.hip ?? value.quadril, arm: value.arm ?? value.braco, bodyFat: value.bodyFat ?? value.gorduraCorporal, createdAt: value.createdAt ?? value.criadoEm ?? '' });
 
 export type Nutricionista = {
   id: number; nome: string; email: string; crn: string; status: string; ativo: number;
@@ -99,6 +112,7 @@ export const PacientesAPI = {
   login: (email: string, password: string) => request<AuthResponse>('/api/auth/login', {
     method: 'POST', body: JSON.stringify({ email, password }),
   }),
+  getMe: () => request<Paciente>('/api/auth/me'),
   getAll: () => request<Paciente[]>('/api/pacientes'),
   getById: (id: number) => request<Paciente>(`/api/pacientes/${id}`),
   findByEmail: async (email: string) => {
@@ -110,6 +124,12 @@ export const PacientesAPI = {
   }),
   update: (id: number, data: Record<string, unknown>) => request<Paciente>(`/api/pacientes/${id}`, {
     method: 'PUT', body: JSON.stringify(normalizeDecimals(data)),
+  }),
+  updateMe: (data: Record<string, unknown>) => request<Paciente>('/api/auth/me', {
+    method: 'PUT', body: JSON.stringify(normalizeDecimals(data)),
+  }),
+  linkNutritionist: (nutricionistaId: number) => request<Paciente>('/api/auth/me/vinculo', {
+    method: 'POST', body: JSON.stringify({ nutricionistaId }),
   }),
   updateCalendario: (id: number, calendario: object) => request<Paciente>(`/api/pacientes/${id}`, {
     method: 'PUT', body: JSON.stringify({ calendario: JSON.stringify(calendario) }),
@@ -134,14 +154,22 @@ export const SolicitacoesAPI = {
 };
 
 export const DiaryAPI = {
-  meals: async (date = localDateString()) => (await request<any[]>(`/api/diario/refeicoes?date=${encodeURIComponent(date)}`)).map(normalizeMeal),
-  addMeal: async (data: Pick<MealEntry, 'mealType' | 'description' | 'calories'> & { entryDate?: string }) => normalizeMeal(await request<any>('/api/diario/refeicoes', {
-    method: 'POST', body: JSON.stringify({ ...data, entryDate: data.entryDate || localDateString() }),
+  meals: async (date?: string) => (await request<any[]>(`/api/diario/refeicoes${date ? `?date=${encodeURIComponent(date)}` : ''}`)).map(normalizeMeal),
+  addMeal: async (data: Partial<MealEntry> & Pick<MealEntry, 'mealType' | 'description' | 'calories'>) => normalizeMeal(await request<any>('/api/diario/refeicoes', {
+    method: 'POST', body: JSON.stringify({ nome: data.mealType, descricao: data.description, calorias: data.calories, carboidratos: data.carbs, proteinas: data.protein, gorduras: data.fat, itens: JSON.stringify(data.items ?? []), origem: data.source, referenciaId: data.referenceId, criadoEm: data.createdAt || data.entryDate || new Date().toISOString() }),
+  })),
+  updateMeal: async (id: number, data: Partial<MealEntry> & Pick<MealEntry, 'mealType' | 'description' | 'calories'>) => normalizeMeal(await request<any>(`/api/diario/refeicoes/${id}`, {
+    method: 'PUT', body: JSON.stringify({ nome: data.mealType, descricao: data.description, calorias: data.calories, carboidratos: data.carbs, proteinas: data.protein, gorduras: data.fat, itens: JSON.stringify(data.items ?? []) }),
   })),
   deleteMeal: (id: number) => request<void>(`/api/diario/refeicoes/${id}`, { method: 'DELETE' }),
-  water: async (date = localDateString()) => (await request<any[]>(`/api/diario/agua?date=${encodeURIComponent(date)}`)).map(normalizeWater),
-  addWater: async (amountMl: number, entryDate = localDateString()) => normalizeWater(await request<any>('/api/diario/agua', {
-    method: 'POST', body: JSON.stringify({ amountMl, entryDate }),
+  water: async (date?: string) => (await request<any[]>(`/api/diario/agua${date ? `?date=${encodeURIComponent(date)}` : ''}`)).map(normalizeWater),
+  addWater: async (amountMl: number, createdAt = new Date().toISOString(), referenceId?: string) => normalizeWater(await request<any>('/api/diario/agua', {
+    method: 'POST', body: JSON.stringify({ amountMl, criadoEm: createdAt, referenciaId: referenceId }),
   })),
-  resetWater: (date = localDateString()) => request<void>(`/api/diario/agua?date=${encodeURIComponent(date)}`, { method: 'DELETE' }),
+  deleteWater: (id: number) => request<void>(`/api/diario/agua/${id}`, { method: 'DELETE' }),
+  measurements: async () => (await request<any[]>('/api/diario/medidas')).map(normalizeMeasurement),
+  addMeasurement: async (data: Omit<MeasurementEntry, 'id' | 'createdAt'> & { createdAt?: string; referenceId?: string }) => normalizeMeasurement(await request<any>('/api/diario/medidas', {
+    method: 'POST', body: JSON.stringify({ peso: data.weight, cintura: data.waist, quadril: data.hip, braco: data.arm, gorduraCorporal: data.bodyFat, criadoEm: data.createdAt || new Date().toISOString(), referenciaId: data.referenceId }),
+  })),
+  deleteMeasurement: (id: number) => request<void>(`/api/diario/medidas/${id}`, { method: 'DELETE' }),
 };

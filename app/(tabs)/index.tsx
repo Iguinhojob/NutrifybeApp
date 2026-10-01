@@ -1,5 +1,5 @@
 import { useAuth } from '@/context/auth';
-import { useDiary, type MealRecord } from '@/context/diary';
+import { useDiary, type MealFoodItem, type MealRecord } from '@/context/diary';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { usePremiumTheme } from '@/context/theme';
 import { calculateFood, FOOD_CATALOG, formatFoodQuantity, normalizeFoodSearch, type CalculatedFood } from '@/utils/foodCatalog';
@@ -39,10 +39,18 @@ type FoodSelection = { foodId: string; quantity: number };
 
 export default function HomeScreen() {
   const { user } = useAuth();
-  const { mealsToday, caloriesToday, addMeal, ready } = useDiary();
+  const { mealsToday, caloriesToday, addMeal, updateMeal, removeMeal, ready } = useDiary();
   const { colors: C } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const [visible, setVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [pendingDeleteMeal, setPendingDeleteMeal] = useState<MealRecord | null>(null);
+  const [editingMeal, setEditingMeal] = useState<MealRecord | null>(null);
+  const [legacyEditMode, setLegacyEditMode] = useState(false);
+  const [legacyMealName, setLegacyMealName] = useState('');
+  const [legacyMacros, setLegacyMacros] = useState({ calories: '', carbs: '', protein: '', fat: '' });
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [type, setType] = useState<MealType>(defaultMealType());
   const [foodSearch, setFoodSearch] = useState('');
   const [selectedFoods, setSelectedFoods] = useState<FoodSelection[]>([]);
@@ -76,11 +84,45 @@ export default function HomeScreen() {
   ).slice(0, 8);
 
   const openMealForm = (meal: MealType = defaultMealType()) => {
+    setEditingMeal(null);
+    setLegacyEditMode(false);
     setType(meal);
     setFoodSearch('');
     setSelectedFoods([]);
     setDescription('');
     setFormError('');
+    setVisible(true);
+  };
+
+  const closeMealForm = () => {
+    if (saving) return;
+    setVisible(false);
+    setEditingMeal(null);
+    setLegacyEditMode(false);
+  };
+
+  const openEditMeal = (meal: MealRecord) => {
+    const items = (meal.items ?? []) as MealFoodItem[];
+    const availableItems = items.filter(item => FOOD_CATALOG.some(food => food.id === item.foodId));
+    setEditingMeal(meal);
+    setType(mealType(meal));
+    setFoodSearch('');
+    const hasCompleteFoodDetails = items.length > 0 && availableItems.length === items.length;
+    setLegacyEditMode(!hasCompleteFoodDetails);
+    if (hasCompleteFoodDetails) {
+      const portions = availableItems.map(item => `${formatFoodQuantity(item.quantity)} ${item.portionLabel} de ${item.name} (~${item.grams} g)`).join(' • ');
+      const savedDescription = meal.description ?? '';
+      setDescription(savedDescription.startsWith(portions) ? savedDescription.slice(portions.length).replace(/^\s*•\s*/, '').trim() : savedDescription);
+      setSelectedFoods(availableItems.map(item => ({ foodId: item.foodId, quantity: item.quantity })));
+    } else {
+      setDescription(meal.description ?? '');
+      setSelectedFoods([]);
+      setLegacyMealName(meal.name);
+      setLegacyMacros({ calories: String(meal.calories), carbs: meal.carbs == null ? '' : String(meal.carbs), protein: meal.protein == null ? '' : String(meal.protein), fat: meal.fat == null ? '' : String(meal.fat) });
+    }
+    setFormError('');
+    setDeleteError('');
+    setDeleteVisible(false);
     setVisible(true);
   };
 
@@ -97,7 +139,47 @@ export default function HomeScreen() {
 
   const removeFood = (foodId: string) => setSelectedFoods(current => current.filter(item => item.foodId !== foodId));
 
+  const confirmDeleteMeal = (meal: MealRecord) => {
+    setDeleteError('');
+    setPendingDeleteMeal(meal);
+  };
+
+  const deleteMeal = async () => {
+    if (!pendingDeleteMeal || deleting) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await removeMeal(pendingDeleteMeal.id);
+      setPendingDeleteMeal(null);
+      setDeleteVisible(false);
+    } catch {
+      setDeleteError('Nao foi possivel excluir. Confira a conexao e tente novamente.');
+    } finally { setDeleting(false); }
+  };
+
   const save = async () => {
+    if (legacyEditMode && editingMeal) {
+      const calories = Number(legacyMacros.calories.replace(',', '.'));
+      const optionalMacro = (value: string) => value.trim() ? Number(value.replace(',', '.')) : undefined;
+      const carbs = optionalMacro(legacyMacros.carbs);
+      const protein = optionalMacro(legacyMacros.protein);
+      const fat = optionalMacro(legacyMacros.fat);
+      const invalidMacro = [carbs, protein, fat].some(value => value !== undefined && (!Number.isFinite(value) || value < 0));
+      if (!legacyMealName.trim() || !legacyMacros.calories.trim() || !Number.isFinite(calories) || calories < 0 || invalidMacro) {
+        setFormError('Confira o nome e os valores nutricionais. Use apenas numeros iguais ou maiores que zero.');
+        return;
+      }
+      setSaving(true);
+      try {
+        await updateMeal(editingMeal.id, { name: legacyMealName.trim(), description: description.trim(), calories, carbs, protein, fat, items: editingMeal.items, source: editingMeal.source, referenceId: editingMeal.referenceId });
+        setVisible(false);
+        setEditingMeal(null);
+        setLegacyEditMode(false);
+      } catch {
+        setFormError('Nao foi possivel sincronizar a correcao. Confira a conexao e tente novamente.');
+      } finally { setSaving(false); }
+      return;
+    }
     if (!selectedDetails.length || calculatedCalories <= 0) {
       setFormError('Adicione pelo menos um alimento à refeição.');
       return;
@@ -108,7 +190,7 @@ export default function HomeScreen() {
       const foodNames = selectedDetails.slice(0, 3).map(item => item.name).join(', ');
       const extraFoods = selectedDetails.length > 3 ? ` +${selectedDetails.length - 3}` : '';
       const portions = selectedDetails.map(item => `${formatFoodQuantity(item.quantity)} ${item.portionLabel} de ${item.name} (~${item.grams} g)`).join(' • ');
-      await addMeal({
+      const data = {
         name: type === 'snack' ? `${foodNames}${extraFoods}` : `${section.label} — ${foodNames}${extraFoods}`,
         description: description.trim() ? `${portions} • ${description.trim()}` : portions,
         calories: calculatedCalories,
@@ -116,9 +198,15 @@ export default function HomeScreen() {
         protein: roundMacro(macroValues.protein),
         fat: roundMacro(macroValues.fat),
         items: selectedDetails,
-        source: 'manual',
-      });
+        source: editingMeal?.source ?? 'manual' as const,
+        referenceId: editingMeal?.referenceId,
+      };
+      if (editingMeal) await updateMeal(editingMeal.id, data);
+      else await addMeal(data);
       setVisible(false);
+      setEditingMeal(null);
+    } catch {
+      setFormError('NÃ£o foi possÃ­vel sincronizar a refeiÃ§Ã£o. Confira a conexÃ£o e tente novamente.');
     } finally { setSaving(false); }
   };
 
@@ -148,7 +236,7 @@ export default function HomeScreen() {
         ].map(([label, value, color]) => <View key={String(label)} style={[styles.dailyMacroCard, { backgroundColor: C.surface }]}><View style={[styles.dailyMacroDot, { backgroundColor: String(color) }]} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.dailyMacroValue, { color: C.text }]}>{roundMacro(Number(value))}g</Text><Text numberOfLines={1} style={[styles.dailyMacroLabel, { color: C.textMuted }]}>{label}</Text></View>)}
       </View>
 
-      <View style={styles.sectionHeading}><View><Text style={[styles.sectionTitle, { color: C.text }]}>Diário alimentar</Text><Text style={[styles.sectionSubtitle, { color: C.textMuted }]}>Registre o que você realmente consumiu.</Text></View><TouchableOpacity onPress={() => openMealForm()} style={[styles.addMain, { backgroundColor: C.primary }]}><Ionicons name="add" size={19} color="#fff" /><Text style={{ color: '#fff', fontWeight: '900', fontSize: 12 }}>Adicionar</Text></TouchableOpacity></View>
+      <View style={styles.sectionHeading}><View><Text style={[styles.sectionTitle, { color: C.text }]}>Diário alimentar</Text><Text style={[styles.sectionSubtitle, { color: C.textMuted }]}>Registre o que você realmente consumiu.</Text></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Corrigir ou excluir refeições" onPress={() => setDeleteVisible(true)} style={[styles.addCircle, { backgroundColor: C.surface2 }]}><Ionicons name="create-outline" size={18} color={C.primary} /></TouchableOpacity><TouchableOpacity onPress={() => openMealForm()} style={[styles.addMain, { backgroundColor: C.primary }]}><Ionicons name="add" size={19} color="#fff" /><Text style={{ color: '#fff', fontWeight: '900', fontSize: 12 }}>Adicionar</Text></TouchableOpacity></View></View>
 
       {!ready ? <View style={styles.loading}><ActivityIndicator color={C.primary} /><Text style={{ color: C.textMuted }}>Carregando refeições…</Text></View> : MEAL_SECTIONS.map(section => {
         const entries = grouped[section.key];
@@ -166,10 +254,16 @@ export default function HomeScreen() {
       <View style={{ height: 90 }} />
     </ScrollView>
 
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setVisible(false)}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeMealForm}>
       <View style={[styles.modal, { backgroundColor: C.bg }]}>
-        <View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.modalTitle, { color: C.text }]}>Registrar refeição</Text><Text style={[styles.modalSubtitle, { color: C.textMuted }]}>Escolha os alimentos e ajuste as medidas caseiras.</Text></View><TouchableOpacity onPress={() => setVisible(false)} style={[styles.close, { backgroundColor: C.surface }]}><Ionicons name="close" size={22} color={C.text} /></TouchableOpacity></View>
+        <View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.modalTitle, { color: C.text }]}>{editingMeal ? 'Corrigir refeição' : 'Registrar refeição'}</Text><Text style={[styles.modalSubtitle, { color: C.textMuted }]}>Escolha os alimentos e ajuste as medidas caseiras.</Text></View><TouchableOpacity onPress={closeMealForm} style={[styles.close, { backgroundColor: C.surface }]}><Ionicons name="close" size={22} color={C.text} /></TouchableOpacity></View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingBottom: 30 }}>
+          {legacyEditMode ? <>
+            <View style={[styles.emptySelection, { borderColor: C.border, gap: 10 }]}><Ionicons name="information-circle-outline" size={24} color={C.primary} /><Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 18 }}>Este registro não tem alimentos detalhados. Você pode corrigir os valores manualmente; a data original e os alimentos salvos serão preservados.</Text></View>
+            <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>NOME DA REFEIÇÃO</Text><TextInput value={legacyMealName} onChangeText={setLegacyMealName} placeholder="Ex.: Almoço" placeholderTextColor={C.textDim} style={[styles.input, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]} /></View>
+            <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>CALORIAS (KCAL)</Text><TextInput value={legacyMacros.calories} onChangeText={value => setLegacyMacros(current => ({ ...current, calories: value.replace(/[^\d.,]/g, '') }))} keyboardType="decimal-pad" style={[styles.input, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]} /></View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>{(['carbs', 'protein', 'fat'] as const).map((key, index) => <View key={key} style={{ flex: 1 }}><Text style={[styles.fieldLabel, { color: C.textMuted }]}>{['CARBOIDRATOS', 'PROTEÍNAS', 'GORDURAS'][index]} (G)</Text><TextInput value={legacyMacros[key]} onChangeText={value => setLegacyMacros(current => ({ ...current, [key]: value.replace(/[^\d.,]/g, '') }))} keyboardType="decimal-pad" placeholder="—" placeholderTextColor={C.textDim} style={[styles.input, { color: C.text, borderColor: C.border, backgroundColor: C.surface, paddingHorizontal: 8 }]} /></View>)}</View>
+          </> : <>
           <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>TIPO DE REFEIÇÃO</Text><View style={styles.typeGrid}>{MEAL_SECTIONS.map(section => <TouchableOpacity key={section.key} onPress={() => { setType(section.key); setFormError(''); }} style={[styles.typeOption, { borderColor: type === section.key ? C.primary : C.border, backgroundColor: type === section.key ? C.primarySoft : C.surface }]}><Ionicons name={section.icon} size={18} color={type === section.key ? C.primary : C.textMuted} /><Text style={{ color: type === section.key ? C.primary : C.text, fontWeight: '800', fontSize: 11 }}>{section.label}</Text></TouchableOpacity>)}</View></View>
           <View>
             <Text style={[styles.fieldLabel, { color: C.textMuted }]}>ADICIONE O QUE VOCÊ COMEU</Text>
@@ -190,11 +284,34 @@ export default function HomeScreen() {
           </View>
 
           <View style={[styles.calculatedCard, { backgroundColor: C.primarySoft }]}><View style={[styles.calculatedIcon, { backgroundColor: C.primary }]}><Ionicons name="sparkles" size={21} color="#fff" /></View><View style={{ flex: 1, minWidth: 0 }}><Text style={[styles.calculatedLabel, { color: C.textMuted }]}>ESTIMATIVA DA REFEIÇÃO</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.calculatedValue, { color: C.text }]}>{calculatedCalories} kcal</Text><View style={styles.calculatedMacros}><Text style={{ color: '#F97316', fontSize: 10, fontWeight: '900' }}>C {roundMacro(macroValues.carbs)}g</Text><Text style={{ color: '#3B82F6', fontSize: 10, fontWeight: '900' }}>P {roundMacro(macroValues.protein)}g</Text><Text style={{ color: '#CA8A04', fontSize: 10, fontWeight: '900' }}>G {roundMacro(macroValues.fat)}g</Text></View></View></View>
+          </>}
           <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>OBSERVAÇÃO (OPCIONAL)</Text><TextInput value={description} onChangeText={setDescription} placeholder="Ex.: preparado com pouco óleo" placeholderTextColor={C.textDim} multiline style={[styles.input, styles.textarea, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]} /></View>
           <View style={[styles.estimateNotice, { backgroundColor: C.warningSoft }]}><Ionicons name="information-circle-outline" size={18} color={C.warning} /><Text style={{ color: C.textMuted, flex: 1, fontSize: 10, lineHeight: 15 }}>Não precisa pesar. As medidas ajudam a estimar; tamanho da porção, marca e modo de preparo podem alterar os valores.</Text></View>
           {!!formError && <View style={[styles.formError, { backgroundColor: C.dangerSoft }]}><Ionicons name="alert-circle-outline" size={17} color={C.danger} /><Text style={{ color: C.danger, flex: 1, fontSize: 12 }}>{formError}</Text></View>}
-          <TouchableOpacity disabled={saving} onPress={() => void save()} style={[styles.saveButton, { backgroundColor: C.primary }]}>{saving ? <ActivityIndicator color="#fff" /> : <><Ionicons name="checkmark" size={20} color="#fff" /><Text style={styles.buttonText}>Salvar refeição</Text></>}</TouchableOpacity>
+          <TouchableOpacity disabled={saving} onPress={() => void save()} style={[styles.saveButton, { backgroundColor: C.primary }]}>{saving ? <ActivityIndicator color="#fff" /> : <><Ionicons name="checkmark" size={20} color="#fff" /><Text style={styles.buttonText}>{editingMeal ? 'Salvar correções' : 'Salvar refeição'}</Text></>}</TouchableOpacity>
         </ScrollView>
+      </View>
+    </Modal>
+    <Modal visible={deleteVisible} animationType="slide" transparent onRequestClose={() => setDeleteVisible(false)}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,.45)' }}><View style={{ maxHeight: '75%', backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}><View><Text style={{ color: C.text, fontSize: 19, fontWeight: '900' }}>Gerenciar refeições</Text><Text style={{ color: C.textMuted, fontSize: 12, marginTop: 3 }}>Corrija ou exclua um registro de hoje.</Text></View><TouchableOpacity accessibilityLabel="Fechar" onPress={() => setDeleteVisible(false)}><Ionicons name="close-circle" size={28} color={C.textDim} /></TouchableOpacity></View>
+        {!!deleteError && !pendingDeleteMeal && <Text style={{ color: C.danger, fontSize: 12, marginBottom: 8 }}>{deleteError}</Text>}
+        <ScrollView>{mealsToday.length ? mealsToday.slice().reverse().map(meal => <View key={meal.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border }}><View style={{ flex: 1 }}><Text numberOfLines={1} style={{ color: C.text, fontWeight: '800' }}>{meal.name}</Text><Text style={{ color: C.textMuted, fontSize: 11, marginTop: 3 }}>{meal.calories} kcal · {new Date(meal.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Corrigir ${meal.name}`} onPress={() => openEditMeal(meal)} style={{ padding: 10 }}><Ionicons name="create-outline" size={20} color={C.primary} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Excluir ${meal.name}`} onPress={() => confirmDeleteMeal(meal)} style={{ padding: 10 }}><Ionicons name="trash-outline" size={20} color={C.danger} /></TouchableOpacity></View>) : <Text style={{ color: C.textMuted, textAlign: 'center', padding: 24 }}>Nenhuma refeição registrada hoje.</Text>}</ScrollView>
+        <TouchableOpacity onPress={() => setDeleteVisible(false)} style={{ alignItems: 'center', padding: 14 }}><Text style={{ color: C.textMuted, fontWeight: '700' }}>Concluir</Text></TouchableOpacity>
+      </View></View>
+    </Modal>
+    <Modal visible={!!pendingDeleteMeal} animationType="fade" transparent onRequestClose={() => !deleting && setPendingDeleteMeal(null)}>
+      <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,.5)' }}>
+        <View style={{ backgroundColor: C.surface, borderRadius: 22, padding: 22, gap: 13 }}>
+          <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: C.dangerSoft, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="trash-outline" size={22} color={C.danger} /></View>
+          <Text style={{ color: C.text, fontSize: 19, fontWeight: '900' }}>Excluir refeição?</Text>
+          <Text style={{ color: C.textMuted, lineHeight: 20 }}>{pendingDeleteMeal?.name} será removida do diário e do histórico.</Text>
+          {!!deleteError && <Text style={{ color: C.danger, fontSize: 12 }}>{deleteError}</Text>}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+            <TouchableOpacity disabled={deleting} onPress={() => setPendingDeleteMeal(null)} style={{ flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 13, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: C.text, fontWeight: '800' }}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity disabled={deleting} onPress={() => void deleteMeal()} style={{ flex: 1, backgroundColor: C.danger, borderRadius: 13, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>{deleting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '900' }}>Excluir</Text>}</TouchableOpacity>
+          </View>
+        </View>
       </View>
     </Modal>
   </View>;

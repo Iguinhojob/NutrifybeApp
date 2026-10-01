@@ -48,7 +48,7 @@ export default function NutriCodeScreen() {
     setError('');
     try {
       if (selected) {
-        const result = await solicitarVinculo(code.trim());
+        const result = await solicitarVinculo(selected.id);
         if (!result.success) setError(result.error ?? 'Não foi possível conectar agora.');
         else setLinked(true);
       } else {
@@ -60,17 +60,17 @@ export default function NutriCodeScreen() {
     finally { pending.current = false; setBusy(false); }
   };
   return <OnboardingShell
-    title={linked ? 'Vocês já estão conectados.' : deferred ? 'Pode ser depois.' : selected ? 'Encontramos seu nutri.' : 'Seu nutri, mais perto.'}
-    subtitle={linked ? 'O acompanhamento de demonstração está disponível no seu plano.' : deferred ? 'Siga com seu cadastro. Você pode informar o código depois, na área de acompanhamento.' : selected ? 'Confira o profissional antes de continuar.' : 'Peça ao seu nutricionista o ID da conta dele na NutriFybe.'}
+    title={linked ? (DEMO_MODE ? 'Vínculo criado.' : 'Solicitação enviada.') : deferred ? 'Pode ser depois.' : selected ? 'Encontramos seu nutri.' : 'Vincule seu nutricionista.'}
+    subtitle={linked ? (DEMO_MODE ? 'O acompanhamento está disponível no seu plano.' : 'Seu nutricionista precisa aceitar o vínculo. Você verá a confirmação no acompanhamento.') : deferred ? 'Siga com seu cadastro. Você pode informar o ID depois, no seu perfil.' : selected ? 'Confira se este é o profissional que você conhece.' : 'Peça ao seu nutricionista o ID da conta dele na NutriFybe.'}
     eyebrow="ACOMPANHAMENTO COM NUTRICIONISTA"
     onBack={resume} busy={busy} error={error} onAction={submit}
-    action={linked ? 'Ir para meu plano' : deferred ? (onboarding ? 'Continuar meu cadastro' : 'Voltar ao plano') : selected ? (onboarding ? 'Confirmar e continuar' : 'Conectar nutricionista') : 'Encontrar meu nutricionista'}
+    action={linked ? 'Voltar ao meu plano' : deferred ? (onboarding ? 'Continuar meu cadastro' : 'Voltar ao plano') : selected ? (onboarding ? 'Confirmar e continuar' : 'Solicitar vínculo') : 'Conferir ID'}
     footer={!linked && !deferred ? <TextLink label="Não tenho o código agora" onPress={() => { setDeferred(true); setError(''); }} /> : undefined}
   >
-    {!deferred && !linked && <Field label="ID do nutricionista" placeholder="Ex.: 1234" value={code} onChangeText={value => { setCode(value.replace(/\D/g, '')); setSelected(null); setError(''); }} keyboardType="number-pad" maxLength={12} />}
+    {!deferred && !linked && <Field label="ID da conta do nutricionista" placeholder="Ex.: 1234" value={code} onChangeText={value => { setCode(value.replace(/\D/g, '')); setSelected(null); setError(''); }} keyboardType="number-pad" maxLength={12} />}
     {selected && !deferred && <Note>{selected.nome}{'\n'}{selected.especialidade || 'Nutricionista'} · CRN {selected.crn}{DEMO_MODE ? '\nPerfil de demonstração' : ''}</Note>}
     {selected && onboarding && !deferred && <Text style={{ color: C.textMuted, fontSize: 13, lineHeight: 20 }}>A conexão será feita ao concluir a criação da sua conta.</Text>}
     {deferred && <Note>Você continua tendo acesso ao app. Quando estiver com o código, abra seu plano e toque em Vincular nutricionista.</Note>}
-    {DEMO_MODE && !deferred && !linked && <Note>Catálogo local de testes. Você pode usar o código {DEMO_NUTRI_CODE} ou escolher um profissional na tela Plano.</Note>}
+    {DEMO_MODE && !deferred && !linked && <Note>Modo de demonstração: use o ID {DEMO_NUTRI_CODE}.</Note>}
   </OnboardingShell>;
 }

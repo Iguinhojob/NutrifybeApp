@@ -5,7 +5,7 @@ import { suggestedWaterGoal } from '@/utils/onboarding';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function WaterScreen() {
   const { user } = useAuth();
@@ -31,7 +31,7 @@ export default function WaterScreen() {
   const addPreset = async (amount: number) => {
     if (busy) return;
     setBusy(true);
-    try { await addWater(amount); } finally { setBusy(false); }
+    try { await addWater(amount); } catch { Alert.alert('NÃ£o foi possÃ­vel salvar', 'Confira a conexÃ£o e tente novamente.'); } finally { setBusy(false); }
   };
 
   const saveCustom = async () => {
@@ -46,6 +46,8 @@ export default function WaterScreen() {
       setCustomAmount('');
       setCustomError('');
       setCustomOpen(false);
+    } catch {
+      Alert.alert('NÃ£o foi possÃ­vel salvar', 'Confira a conexÃ£o e tente novamente.');
     } finally { setBusy(false); }
   };
 
@@ -55,6 +57,8 @@ export default function WaterScreen() {
     try {
       await removeWater(pendingDelete.id);
       setPendingDelete(null);
+    } catch {
+      Alert.alert('NÃ£o foi possÃ­vel excluir', 'Confira a conexÃ£o e tente novamente.');
     } finally { setBusy(false); }
   };
 

@@ -3,18 +3,21 @@ import { useDiary } from '@/context/diary';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { usePremiumTheme } from '@/context/theme';
 import { calculateCalorieGoal, measurementError, suggestedWaterGoal } from '@/utils/onboarding';
+import { localDateString } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
 const GOALS = ['Perder peso', 'Manter peso', 'Ganhar massa', 'Melhorar saúde'];
 
-type ChartPoint = { value: number; date: Date };
+type ChartPoint = { value: number | null; date: Date; key?: string };
+type DailyCaloriePoint = ChartPoint & { key: string };
 
 function LineTrendChart({ allPoints, target, targetLabel, emptyText, C }: { allPoints: ChartPoint[]; target: number; targetLabel: string; emptyText: string; C: any }) {
-  const points = allPoints.slice(-7).filter(point => Number.isFinite(point.value));
+  if (target > 500 || allPoints.some(point => (point.value ?? 0) > 500) || emptyText.toLowerCase().includes('calorias')) return <DailyCalorieChart points={allPoints as DailyCaloriePoint[]} target={target} C={C} />;
+  const points = allPoints.slice(-7).filter((point): point is ChartPoint & { value: number } => typeof point.value === 'number' && Number.isFinite(point.value));
   if (!points.length) return <View style={{ height: 170, alignItems: 'center', justifyContent: 'center', gap: 7 }}><Ionicons name="analytics-outline" size={32} color={C.textDim} /><Text style={{ color: C.textMuted }}>{emptyText}</Text></View>;
   const values = [...points.map(point => point.value), ...(Number.isFinite(target) ? [target] : [])];
   const min = Math.min(...values); const max = Math.max(...values); const range = Math.max(max - min, 1);
@@ -31,6 +34,37 @@ function LineTrendChart({ allPoints, target, targetLabel, emptyText, C }: { allP
   </Svg><Text style={{ color: C.textDim, fontSize: 10, textAlign: 'center' }}>Últimos {points.length} {points.length === 1 ? 'registro' : 'registros'}</Text></View>;
 }
 
+function DailyCalorieChart({ points, target, C }: { points: DailyCaloriePoint[]; target: number; C: any }) {
+  const plotted = points.filter(point => point.value !== null);
+  if (!plotted.length) return <View style={{ height: 180, alignItems: 'center', justifyContent: 'center', gap: 7 }}><Ionicons name="analytics-outline" size={32} color={C.textDim} /><Text style={{ color: C.textMuted, textAlign: 'center' }}>Registre refeições em dias diferentes para ver sua evolução diária.</Text></View>;
+  const maxValue = Math.max(target > 0 ? target : 0, ...plotted.map(point => point.value || 0), 500);
+  const ceiling = Math.ceil(maxValue / 500) * 500;
+  const left = 42; const right = 348; const top = 18; const bottom = 158;
+  const x = (index: number) => left + (index / 6) * (right - left);
+  const y = (value: number) => bottom - Math.max(0, Math.min(value, ceiling)) / ceiling * (bottom - top);
+  const segments: string[] = [];
+  let currentSegment: string[] = [];
+  points.forEach((point, index) => {
+    if (point.value === null) {
+      if (currentSegment.length > 1) segments.push(currentSegment.join(' '));
+      currentSegment = [];
+      return;
+    }
+    currentSegment.push(`${x(index)},${y(point.value)}`);
+  });
+  if (currentSegment.length > 1) segments.push(currentSegment.join(' '));
+  return <View>
+    <Svg width="100%" height={205} viewBox="0 0 360 205">
+      {[0, ceiling / 2, ceiling].map(tick => <React.Fragment key={tick}><Line x1={left} x2={right} y1={y(tick)} y2={y(tick)} stroke={C.border} strokeWidth="1" /><SvgText x="36" y={y(tick) + 3} fill={C.textMuted} fontSize="9" textAnchor="end">{Math.round(tick)}</SvgText></React.Fragment>)}
+      {target > 0 && <><Line x1={left} x2={right} y1={y(target)} y2={y(target)} stroke={C.warning} strokeWidth="1.5" strokeDasharray="5 5" /><SvgText x={right - 2} y={Math.max(y(target) - 6, 10)} fill={C.warning} fontSize="9" textAnchor="end">Meta {Math.round(target)}</SvgText></>}
+      {segments.map((segment, index) => <Polyline key={index} points={segment} fill="none" stroke={C.primary} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />)}
+      {points.map((point, index) => point.value === null ? null : <React.Fragment key={point.key}><Circle cx={x(index)} cy={y(point.value)} r="4.5" fill={C.surface} stroke={C.primary} strokeWidth="2.5" /><SvgText x={x(index)} y={Math.max(y(point.value) - 8, 10)} fill={C.text} fontSize="8" fontWeight="700" textAnchor="middle">{Math.round(point.value)}</SvgText></React.Fragment>)}
+      {points.map((point, index) => <SvgText key={`day-${point.key}`} x={x(index)} y="179" fill={C.textMuted} fontSize="8" textAnchor="middle">{point.date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</SvgText>)}
+    </Svg>
+    <Text style={{ color: C.textDim, fontSize: 10, textAlign: 'center' }}>Cada ponto é um dia com refeições registradas; lacunas significam que não há registros.</Text>
+  </View>;
+}
+
 export default function TrendsScreen() {
   const { user, updateUser } = useAuth(); const { measurements, allMeals, ready, addMeasurement } = useDiary();
   const { colors: C } = usePremiumTheme(); const { topPad } = useAppLayout(); const params = useLocalSearchParams<{ edit?: string }>();
@@ -44,8 +78,14 @@ export default function TrendsScreen() {
     if (error) return Alert.alert('Confira os dados', error);
     if (!Number.isFinite(water) || water < 0.5 || water > 10) return Alert.alert('Confira os dados', 'Informe uma meta de água entre 0,5 e 10 litros.');
     const normalized = { ...form, weight: form.weight.replace(',', '.'), height: form.height.replace(',', '.'), targetWeight: form.targetWeight.replace(',', '.'), waterGoal: form.waterGoal.replace(',', '.') };
-    if (normalized.weight !== user?.weight) await addMeasurement({ weight: normalized.weight });
-    updateUser(normalized); closeEditor(); Alert.alert('Dados atualizados', 'As metas de calorias e hidratação foram atualizadas.');
+    try {
+      await updateUser(normalized);
+      if (normalized.weight !== user?.weight) await addMeasurement({ weight: normalized.weight });
+      closeEditor();
+      Alert.alert('Dados atualizados', 'As metas de calorias e hidratação foram atualizadas.');
+    } catch {
+      Alert.alert('Erro ao salvar', 'Não foi possível atualizar seus dados no servidor. Tente novamente.');
+    }
   };
   const weightRecords = measurements.filter(item => item.weight); const first = weightRecords[0]; const current = weightRecords.at(-1);
   const change = current && first && current !== first ? Number(current.weight!.replace(',', '.')) - Number(first.weight!.replace(',', '.')) : 0;
@@ -53,8 +93,8 @@ export default function TrendsScreen() {
   const waterGoal = user?.waterGoal || String(suggestedWaterGoal(user?.weight || '', user?.activityLevel));
   const bmi = user?.weight && user?.height ? (Number(user.weight) / Math.pow(Number(user.height) / 100, 2)).toFixed(1) : '—';
   const weightPoints = weightRecords.map(record => ({ value: Number(record.weight!.replace(',', '.')), date: new Date(record.createdAt) }));
-  const caloriesByDay = allMeals.reduce<Record<string, ChartPoint>>((acc, meal) => { const date = new Date(meal.createdAt); const key = date.toLocaleDateString('en-CA'); if (!acc[key]) acc[key] = { value: 0, date }; acc[key].value += meal.calories; return acc; }, {});
-  const caloriePoints = Object.values(caloriesByDay).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const caloriesByDay = allMeals.reduce<Record<string, number>>((acc, meal) => { const key = /^\d{4}-\d{2}-\d{2}$/.test(meal.createdAt) ? meal.createdAt : localDateString(new Date(meal.createdAt)); acc[key] = (acc[key] || 0) + meal.calories; return acc; }, {});
+  const caloriePoints: DailyCaloriePoint[] = Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() - (6 - index)); const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; return { key, date, value: Object.prototype.hasOwnProperty.call(caloriesByDay, key) ? caloriesByDay[key] : null }; });
   const card = { backgroundColor: C.surface, borderRadius: 20, padding: 18, marginBottom: 14, shadowColor: '#000', shadowOpacity: .05, shadowRadius: 8, elevation: 2 } as const;
   const field = (key: keyof typeof form, label: string, suffix: string) => <View style={{ marginBottom: 12 }}><Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>{label}</Text><View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.surface }}><TextInput value={form[key]} onChangeText={value => setForm(prev => ({ ...prev, [key]: value }))} keyboardType="decimal-pad" style={{ flex: 1, padding: 13, color: C.text, fontSize: 15 }} placeholder={label} placeholderTextColor={C.textDim} /><Text style={{ color: C.textMuted, marginRight: 13 }}>{suffix}</Text></View></View>;
 

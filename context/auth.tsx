@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEMO_MODE, findDemoNutritionistById, findNutritionist } from '@/services/demo';
 import { ageFromBirthDate, isValidEmail, isValidPassword, measurementError } from '@/utils/onboarding';
-import { PacientesAPI, NutricionistasAPI, SolicitacoesAPI, setAccessToken } from '@/services/api';
+import { PacientesAPI, NutricionistasAPI, setAccessToken } from '@/services/api';
 import type { Paciente, Nutricionista } from '@/services/api';
 
 // ── Tipos do contexto ─────────────────────────────────────────────────────────
@@ -56,8 +56,9 @@ type AuthContextType = {
   login: (email: string, senha: string) => Promise<boolean>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  updateUser: (data: Partial<User>) => void;
-  solicitarVinculo: (crn: string) => Promise<{ success: boolean; error?: string }>;
+  updateUser: (data: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
+  solicitarVinculo: (nutricionistaId: number) => Promise<{ success: boolean; error?: string }>;
   marcarNotificacaoLida: (id: string) => void;
   clearError: () => void;
 };
@@ -93,11 +94,21 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 function pacienteToUser(p: Paciente): User {
   return {
     id: p.id!,
-    name: p.nome,
+    name: p.nome ?? '',
     email: p.email,
-    weight: String(p.peso),
-    height: String(p.altura),
-    goal: p.objetivo,
+    weight: p.peso == null ? '' : String(p.peso),
+    height: p.altura == null ? '' : String(p.altura),
+    goal: p.objetivo ?? '',
+    targetWeight: p.pesoMeta == null ? undefined : String(p.pesoMeta),
+    waterGoal: p.metaAgua == null ? undefined : String(p.metaAgua),
+    birthDate: p.dataNascimento,
+    sexo: p.sexo,
+    activityLevel: p.atividade,
+    restrictions: p.restricoes,
+    motivation: p.motivacao,
+    healthNote: p.observacoes ?? undefined,
+    origin: p.origem,
+    followupPreference: p.preferenciaAcompanhamento,
     nutricionistaId: p.nutricionistaId,
     prescricaoSemanal: p.prescricaoSemanal,
     calendario: p.calendario,
@@ -221,53 +232,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         motivation: data.motivation,
         origin: data.origin,
         followupPreference: data.followupPreference,
+        nutricionistaId: data.nutricionistaId,
       });
       setAccessToken(resposta.token);
-      setUser(pacienteToUser(resposta.paciente));
-      return { success: true };
-
-      const existing = await PacientesAPI.findByEmail(data.email);
-      if (existing) {
-        return { success: false, error: 'Este email já está cadastrado.' };
+      const paciente = resposta.paciente;
+      setUser(pacienteToUser(paciente));
+      setVinculo(null);
+      if (paciente.nutricionistaId) {
+        try {
+          const nutri = await NutricionistasAPI.getById(paciente.nutricionistaId);
+          setVinculo({ nutricionista: nutri, status: paciente.status === 'accepted' ? 'ativo' : 'pendente' });
+        } catch {
+          // O perfil permanece carregado mesmo se os dados públicos do nutricionista falharem.
+        }
       }
-
-      const novoPaciente: Omit<Paciente, 'id' | 'dataCriacao'> = {
-        nome: data.name,
-        email: data.email,
-        senha: data.password,
-        idade: calcularIdade(data.birthDate),
-        peso: parseFloat(data.weight) || 0,
-        altura: parseFloat(data.height) || 0,
-        objetivo: data.goal || 'Manter peso',
-        condicaoSaude: data.restrictions || 'Nenhuma',
-        nutricionistaId: null,
-        status: 'pending',
-        ativo: 1,
-      };
-
-      await PacientesAPI.create(novoPaciente);
-
-      // Busca o paciente recém-criado para pegar o ID
-      const criado = (await PacientesAPI.findByEmail(data.email))!;
-      if (!criado) return { success: false, error: 'Erro ao criar conta.' };
-
-      setUser({
-        id: criado.id!,
-        name: data.name,
-        email: data.email,
-        weight: data.weight,
-        height: data.height,
-        goal: data.goal,
-        targetWeight: data.targetWeight,
-        waterGoal: data.waterGoal,
-        birthDate: data.birthDate,
-        sexo: data.sexo,
-        activityLevel: data.activityLevel,
-        restrictions: data.restrictions,
-        origin: data.origin,
-        nutricionistaId: null,
-      });
-
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message || 'Erro ao criar conta.' };
@@ -276,48 +254,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // ── Solicitar vínculo por CRN ──────────────────────────────────────────────
-  // Lógica: paciente informa o CRN do nutricionista →
-  // sistema busca o nutri pelo CRN → cria solicitação pendente →
+  // ── Solicitar vínculo pelo ID da conta ────────────────────────────────────
+  // O paciente informa o ID da conta do profissional para solicitar um vínculo.
   // atualiza o paciente com nutricionistaId e status "pending"
-  const solicitarVinculo = async (crn: string): Promise<{ success: boolean; error?: string }> => {
+  const solicitarVinculo = async (nutricionistaId: number): Promise<{ success: boolean; error?: string }> => {
     if (!user) return { success: false, error: 'Usuário não autenticado.' };
+    if (!Number.isSafeInteger(nutricionistaId) || nutricionistaId <= 0) {
+      return { success: false, error: 'Informe um ID de nutricionista válido.' };
+    }
     setLoading(true);
     try {
       if (DEMO_MODE) {
-        const nutri = await findNutritionist(crn);
+        const nutri = await findNutritionist(String(nutricionistaId));
         if (!nutri) return { success: false, error: 'Código não encontrado. Na demonstração, use 1234.' };
-        const updated = { ...user, nutricionistaId: nutri.id, nutriCode: crn };
+        const updated = { ...user, nutricionistaId: nutri.id, nutriCode: String(nutri.id) };
         setUser(updated);
         const existing = demoProfiles.current.get(user.email.toLowerCase());
         if (existing) { demoProfiles.current.set(user.email.toLowerCase(), { ...existing, ...updated }); await saveLocalProfiles(); }
         setVinculo({ nutricionista: nutri, status: 'ativo' });
         return { success: true };
       }
-      const nutri = await NutricionistasAPI.findByCrn(crn.trim().toUpperCase());
-      if (!nutri) {
-        return { success: false, error: 'Nutricionista não encontrado. Verifique o CRN.' };
+      const nutri = await NutricionistasAPI.getById(nutricionistaId);
+      if (nutri.ativo !== 1 || nutri.status !== 'approved') {
+        return { success: false, error: 'Nutricionista não encontrado ou ainda não aprovado. Confira o ID com ele.' };
       }
 
       // Cria solicitação pendente
-      await SolicitacoesAPI.create({
-        nome: user.name,
-        email: user.email,
-        idade: calcularIdade(user.birthDate),
-        peso: parseFloat(user.weight) || 0,
-        altura: parseFloat(user.height) || 0,
-        objetivo: user.goal,
-        condicaoSaude: user.restrictions || 'Nenhuma',
-        nutricionistaId: nutri.id,
-      });
-
-      // Atualiza o paciente no backend com o nutricionistaId
-      await PacientesAPI.update(user.id, {
-        nutricionistaId: nutri.id,
-        status: 'pending',
-      });
-
-      setUser(prev => prev ? { ...prev, nutricionistaId: nutri.id } : prev);
+      const paciente = await PacientesAPI.linkNutritionist(nutri.id);
+      setUser(pacienteToUser(paciente));
       setVinculo({ nutricionista: nutri, status: 'pendente' });
 
       addNotificacao('geral', 'Solicitação enviada', `Sua solicitação foi enviada para ${nutri.nome}. Aguarde a confirmação.`);
@@ -343,21 +307,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    setAccessToken(null);
     setUser(null);
     setVinculo(null);
     setNotificacoes([]);
     setError(null);
   };
 
-  const updateUser = (data: Partial<User>) => {
+  const updateUser = async (data: Partial<User>) => {
     if (!user) return;
-    const updated = { ...user, ...data };
+    let updated = { ...user, ...data };
     if (DEMO_MODE) {
       const existing = demoProfiles.current.get(updated.email.toLowerCase());
       if (existing) { demoProfiles.current.set(updated.email.toLowerCase(), { ...existing, ...updated }); void saveLocalProfiles(); }
+    } else {
+      const payload: Record<string, unknown> = {};
+      const fields: Array<[keyof User, string]> = [
+        ['name', 'name'], ['weight', 'weight'], ['height', 'height'], ['goal', 'goal'],
+        ['targetWeight', 'targetWeight'], ['waterGoal', 'waterGoal'], ['birthDate', 'birthDate'],
+        ['sexo', 'sexo'], ['activityLevel', 'activityLevel'], ['restrictions', 'restrictions'],
+        ['motivation', 'motivation'], ['healthNote', 'healthNote'], ['origin', 'origin'],
+        ['followupPreference', 'followupPreference'],
+      ];
+      for (const [userKey, apiKey] of fields) {
+        if (Object.prototype.hasOwnProperty.call(data, userKey)) payload[apiKey] = data[userKey];
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const paciente = await PacientesAPI.updateMe(payload);
+        updated = pacienteToUser(paciente);
+      } catch (e: any) {
+        setError(e.message || 'NÃ£o foi possÃ­vel salvar seu perfil.');
+        throw e;
+      } finally {
+        setLoading(false);
+      }
     }
     setUser(updated);
   };
+
+  const refreshUser = useCallback(async () => {
+    if (!user || DEMO_MODE) return;
+    const paciente = await PacientesAPI.getMe();
+    const freshUser = pacienteToUser(paciente);
+    if (JSON.stringify(freshUser) !== JSON.stringify(user)) setUser(freshUser);
+    if (!paciente.nutricionistaId) { setVinculo(null); return; }
+    try {
+      const nutri = await NutricionistasAPI.getById(paciente.nutricionistaId);
+      setVinculo({ nutricionista: nutri, status: paciente.status === 'accepted' ? 'ativo' : 'pendente' });
+    } catch {
+      setVinculo(null);
+    }
+  }, [user]);
 
   const marcarNotificacaoLida = (id: string) => {
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
@@ -370,7 +372,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user, isAuthenticated: !!user,
       vinculo, notificacoes,
       loading, error,
-      login, register, logout, updateUser,
+      login, register, logout, updateUser, refreshUser,
       solicitarVinculo, marcarNotificacaoLida, clearError,
     }}>
       {children}
@@ -379,16 +381,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
-
-// ── Util ──────────────────────────────────────────────────────────────────────
-function calcularIdade(birthDate?: string): number {
-  if (!birthDate) return 0;
-  // Suporta DD/MM/AAAA
-  const parts = birthDate.split('/');
-  if (parts.length === 3) {
-    const birth = new Date(+parts[2], +parts[1] - 1, +parts[0]);
-    const diff = Date.now() - birth.getTime();
-    return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-  }
-  return 0;
-}
