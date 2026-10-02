@@ -8,6 +8,7 @@ import { useAuth } from '@/context/auth';
 import { useDiary } from '@/context/diary';
 import { usePremiumTheme } from '@/context/theme';
 import { useAppLayout } from '@/hooks/useAppLayout';
+import { localDateString } from '@/services/api';
 import {
   defaultPantryFor,
   generateNutriaPlan,
@@ -21,6 +22,11 @@ import {
 } from '@/utils/nutria';
 
 const PLAN_STORAGE_PREFIX = 'nutrifybe:nutria-plan:v1:';
+const prescribedCompletionKey = (userId: number, plan: string, day: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < plan.length; index += 1) hash = Math.imul(hash ^ plan.charCodeAt(index), 16777619);
+  return `nutrifybe:prescribed-meals:v1:${userId}:${day}:${(hash >>> 0).toString(36)}`;
+};
 const SHORT_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const PANTRY_GROUPS: PantryGroup[] = ['protein', 'carb', 'fruit', 'vegetable', 'extra'];
 
@@ -42,6 +48,44 @@ function NutritionistPlan() {
   const { user, vinculo } = useAuth();
   const nutritionist = vinculo?.nutricionista;
   const prescription = user?.prescricaoSemanal?.trim();
+  const [completed, setCompleted] = useState<Record<string, boolean>>({});
+  const structuredPlan = useMemo(() => {
+    if (!prescription) return null;
+    try {
+      const parsed = JSON.parse(prescription);
+      return parsed?.version === 1 && Array.isArray(parsed.meals) ? parsed as { version: number; meals: { horario?: string; nome?: string; alimentos?: string; porcao?: string; calorias?: string | number; observacao?: string }[]; notes?: string } : null;
+    } catch { return null; }
+  }, [prescription]);
+  const completionKey = user?.id && prescription ? prescribedCompletionKey(user.id, prescription, localDateString()) : null;
+  const { allMeals, addMeal, removeMeal } = useDiary();
+  const [prescriptionFeedback, setPrescriptionFeedback] = useState('');
+  useEffect(() => {
+    let active = true;
+    setCompleted({});
+    if (completionKey) AsyncStorage.getItem(completionKey).then(raw => { if (active && raw) { try { setCompleted(JSON.parse(raw)); } catch { setCompleted({}); } } }).catch(() => {});
+    return () => { active = false; };
+  }, [completionKey]);
+  const togglePrescribedMeal = async (index: number) => {
+    if (!completionKey || !structuredPlan || !user) return;
+    const next = { ...completed, [String(index)]: !completed[String(index)] };
+    const meal = structuredPlan.meals[index];
+    const referenceId = `${completionKey}:${index}`;
+    try {
+      if (next[String(index)]) {
+        const calories = Number(meal.calorias);
+        if (!Number.isFinite(calories) || calories < 0) { setPrescriptionFeedback('Esta refeição ainda não tem calorias informadas pelo nutricionista.'); return; }
+        if (!allMeals.some(record => record.referenceId === referenceId)) {
+          await addMeal({ name: meal.nome || `Refeição ${index + 1}`, description: [meal.alimentos, meal.porcao && `Porção: ${meal.porcao}`, meal.observacao && `Observação: ${meal.observacao}`].filter(Boolean).join(' · '), calories, source: 'manual', referenceId });
+        }
+      } else {
+        const record = allMeals.find(item => item.referenceId === referenceId);
+        if (record) await removeMeal(record.id);
+      }
+      await AsyncStorage.setItem(completionKey, JSON.stringify(next));
+      setCompleted(next);
+      setPrescriptionFeedback('');
+    } catch { setPrescriptionFeedback('Não foi possível atualizar o diário agora. Tente novamente.'); }
+  };
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={[styles.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false}>
@@ -53,6 +97,7 @@ function NutritionistPlan() {
           <Text style={styles.heroSubtitle}>{nutritionist?.especialidade || 'Acompanhamento nutricional'}</Text>
           {!!nutritionist?.crn && <Text style={styles.heroMeta}>CRN {nutritionist.crn}</Text>}
         </View>
+        {!!prescriptionFeedback && <Text accessibilityRole="alert" style={{ color: C.danger, marginTop: 8, fontSize: 12 }}>{prescriptionFeedback}</Text>}
         <View style={styles.activeBadge}><View style={styles.activeDot} /><Text style={styles.activeText}>Ativo</Text></View>
       </View>
 
@@ -64,11 +109,26 @@ function NutritionistPlan() {
             <Ionicons name="chevron-forward" size={14} color={C.primary} />
           </TouchableOpacity>
         </View>
-        {prescription ? prescription.split('\n').filter(Boolean).map((line, index) => (
-          <View key={`${line}-${index}`} style={styles.bulletRow}>
-            <View style={[styles.bullet, { backgroundColor: C.primary }]} />
-            <Text style={[styles.bodyText, { color: C.textMuted }]}>{line}</Text>
-          </View>
+        {structuredPlan ? (
+          <>
+            {structuredPlan.meals.map((meal, index) => {
+              const done = !!completed[String(index)];
+              return <TouchableOpacity key={`${meal.nome}-${index}`} onPress={() => void togglePrescribedMeal(index)} accessibilityRole="checkbox" accessibilityState={{ checked: done }} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, marginTop: 10, borderRadius: 14, borderWidth: 1, borderColor: done ? C.primary : C.border, backgroundColor: C.surface2 }}>
+                <Ionicons name={done ? 'checkbox' : 'square-outline'} size={23} color={done ? C.primary : C.textDim} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: C.text, fontWeight: '900', fontSize: 15 }}>{meal.horario ? `${meal.horario} · ` : ''}{meal.nome || `Refeição ${index + 1}`}</Text>
+                  {!!meal.alimentos && <Text style={[styles.bodyText, { color: C.textMuted, marginTop: 5 }]}>{meal.alimentos}</Text>}
+                  {!!meal.porcao && <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 5 }}>Porção: {meal.porcao}</Text>}
+                  {meal.calorias != null && meal.calorias !== '' && <Text style={{ color: C.primary, fontSize: 12, fontWeight: '900', marginTop: 5 }}>{meal.calorias} kcal · entra na meta diária ao concluir</Text>}
+                  {!!meal.observacao && <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 4 }}>Opção/observação: {meal.observacao}</Text>}
+                  <Text style={{ color: done ? C.primary : C.textDim, fontSize: 11, fontWeight: '800', marginTop: 8 }}>{done ? 'Concluída' : 'Toque para marcar como concluída'}</Text>
+                </View>
+              </TouchableOpacity>;
+            })}
+            {!!structuredPlan.notes && <View style={{ marginTop: 16, padding: 13, borderRadius: 12, backgroundColor: C.surface2 }}><Text style={{ color: C.text, fontWeight: '800', marginBottom: 4 }}>Orientações gerais</Text><Text style={[styles.bodyText, { color: C.textMuted }]}>{structuredPlan.notes}</Text></View>}
+          </>
+        ) : prescription ? prescription.split('\n').filter(Boolean).map((line, index) => (
+          <View key={`${line}-${index}`} style={styles.bulletRow}><View style={[styles.bullet, { backgroundColor: C.primary }]} /><Text style={[styles.bodyText, { color: C.textMuted }]}>{line}</Text></View>
         )) : (
           <View style={styles.emptyInner}>
             <Ionicons name="document-text-outline" size={42} color={C.textDim} />
