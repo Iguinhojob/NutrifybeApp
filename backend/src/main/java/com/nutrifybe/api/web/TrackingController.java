@@ -22,6 +22,10 @@ public class TrackingController {
     public ApiDtos.MealResponse addMeal(@Valid @RequestBody ApiDtos.MealInput input, @AuthenticationPrincipal Jwt jwt) {
         return tracking.addMeal(patientId(jwt), input);
     }
+    @PutMapping("/refeicoes/{id}")
+    public ApiDtos.MealResponse updateMeal(@PathVariable long id, @Valid @RequestBody ApiDtos.MealInput input, @AuthenticationPrincipal Jwt jwt) {
+        return tracking.updateMeal(patientId(jwt), id, input);
+    }
     @DeleteMapping("/refeicoes/{id}")
     public void removeMeal(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) { tracking.removeMeal(patientId(jwt), id); }
 

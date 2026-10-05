@@ -2,15 +2,14 @@ import { useAuth } from '@/context/auth';
 import { useDiary, type MealFoodItem, type MealRecord } from '@/context/diary';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { usePremiumTheme } from '@/context/theme';
-import { calculateFood, FOOD_CATALOG, formatFoodQuantity, normalizeFoodSearch, type CalculatedFood } from '@/utils/foodCatalog';
 import { calculateCalorieGoal, calculateGoalProjection } from '@/utils/onboarding';
+import { DiaryAPI, type FoodSearchResult } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
-const POPULAR_FOOD_IDS = ['rice', 'beans', 'chicken', 'egg', 'french-bread', 'banana'];
 const MEAL_SECTIONS: { key: MealType; label: string; icon: keyof typeof Ionicons.glyphMap; accent: string }[] = [
   { key: 'breakfast', label: 'Café da manhã', icon: 'sunny-outline', accent: '#F59E0B' },
   { key: 'lunch', label: 'Almoço', icon: 'restaurant-outline', accent: '#22C55E' },
@@ -35,7 +34,8 @@ function defaultMealType(): MealType {
 }
 
 const roundMacro = (value: number) => Math.round(value * 10) / 10;
-type FoodSelection = { foodId: string; quantity: number };
+type FoodSelection = FoodSearchResult & { gramsText: string };
+type FoodDetail = FoodSelection & { grams: number; calories: number; carbs?: number; protein?: number; fat?: number };
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -54,6 +54,9 @@ export default function HomeScreen() {
   const [type, setType] = useState<MealType>(defaultMealType());
   const [foodSearch, setFoodSearch] = useState('');
   const [selectedFoods, setSelectedFoods] = useState<FoodSelection[]>([]);
+  const [foodResults, setFoodResults] = useState<FoodSearchResult[]>([]);
+  const [searchingFoods, setSearchingFoods] = useState(false);
+  const [foodSearchError, setFoodSearchError] = useState('');
   const [description, setDescription] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -67,21 +70,45 @@ export default function HomeScreen() {
     protein: total.protein + (meal.protein ?? 0),
     fat: total.fat + (meal.fat ?? 0),
   }), { carbs: 0, protein: 0, fat: 0 }), [mealsToday]);
-  const selectedDetails = useMemo(() => selectedFoods.map(selection => {
-    const food = FOOD_CATALOG.find(item => item.id === selection.foodId);
-    return food ? calculateFood(food, selection.quantity) : null;
-  }).filter((item): item is CalculatedFood => item !== null), [selectedFoods]);
+  const selectedDetails = useMemo<FoodDetail[]>(() => selectedFoods.map(selection => {
+    const grams = Number(selection.gramsText.replace(',', '.'));
+    const factor = Number.isFinite(grams) && grams > 0 ? grams / 100 : 0;
+    return {
+      ...selection,
+      grams: Number.isFinite(grams) && grams > 0 ? grams : 0,
+      calories: Math.round(selection.caloriesPer100g * factor),
+      carbs: selection.carbsPer100g == null ? undefined : roundMacro(selection.carbsPer100g * factor),
+      protein: selection.proteinPer100g == null ? undefined : roundMacro(selection.proteinPer100g * factor),
+      fat: selection.fatPer100g == null ? undefined : roundMacro(selection.fatPer100g * factor),
+    };
+  }), [selectedFoods]);
   const macroValues = useMemo(() => selectedDetails.reduce((total, item) => ({
-    carbs: total.carbs + item.carbs,
-    protein: total.protein + item.protein,
-    fat: total.fat + item.fat,
+    carbs: total.carbs + (item.carbs ?? 0),
+    protein: total.protein + (item.protein ?? 0),
+    fat: total.fat + (item.fat ?? 0),
   }), { carbs: 0, protein: 0, fat: 0 }), [selectedDetails]);
-  const calculatedCalories = selectedDetails.reduce((total, item) => total + item.calories, 0);
-  const normalizedSearch = normalizeFoodSearch(foodSearch);
-  const filteredFoods = (normalizedSearch
-    ? FOOD_CATALOG.filter(food => normalizeFoodSearch(`${food.name} ${food.aliases.join(' ')}`).includes(normalizedSearch))
-    : POPULAR_FOOD_IDS.map(id => FOOD_CATALOG.find(food => food.id === id)).filter((food): food is (typeof FOOD_CATALOG)[number] => !!food)
-  ).slice(0, 8);
+  const calculatedCalories = Math.round(selectedDetails.reduce((total, item) => total + item.calories, 0));
+
+  useEffect(() => {
+    const query = foodSearch.trim();
+    let active = true;
+    if (query.length < 2) {
+      setFoodResults([]);
+      setFoodSearchError('');
+      setSearchingFoods(false);
+      return () => { active = false; };
+    }
+    setSearchingFoods(true);
+    setFoodSearchError('');
+    const timer = setTimeout(() => {
+      DiaryAPI.searchFoods(query).then(results => {
+        if (active) setFoodResults(results);
+      }).catch((error: unknown) => {
+        if (active) { setFoodResults([]); setFoodSearchError(error instanceof Error ? error.message : 'Não foi possível consultar a base nutricional.'); }
+      }).finally(() => { if (active) setSearchingFoods(false); });
+    }, 450);
+    return () => { active = false; clearTimeout(timer); };
+  }, [foodSearch]);
 
   const openMealForm = (meal: MealType = defaultMealType()) => {
     setEditingMeal(null);
@@ -89,6 +116,8 @@ export default function HomeScreen() {
     setType(meal);
     setFoodSearch('');
     setSelectedFoods([]);
+    setFoodResults([]);
+    setFoodSearchError('');
     setDescription('');
     setFormError('');
     setVisible(true);
@@ -103,17 +132,27 @@ export default function HomeScreen() {
 
   const openEditMeal = (meal: MealRecord) => {
     const items = (meal.items ?? []) as MealFoodItem[];
-    const availableItems = items.filter(item => FOOD_CATALOG.some(food => food.id === item.foodId));
     setEditingMeal(meal);
     setType(mealType(meal));
     setFoodSearch('');
-    const hasCompleteFoodDetails = items.length > 0 && availableItems.length === items.length;
+    const hasCompleteFoodDetails = items.length > 0 && items.every(item => item && item.foodId && item.name && Number(item.grams) > 0 && Number(item.calories) >= 0);
     setLegacyEditMode(!hasCompleteFoodDetails);
     if (hasCompleteFoodDetails) {
-      const portions = availableItems.map(item => `${formatFoodQuantity(item.quantity)} ${item.portionLabel} de ${item.name} (~${item.grams} g)`).join(' • ');
+      const portions = items.map(item => `${item.name} - ${item.grams} g - ${item.calories} kcal`).join(' | ');
       const savedDescription = meal.description ?? '';
-      setDescription(savedDescription.startsWith(portions) ? savedDescription.slice(portions.length).replace(/^\s*•\s*/, '').trim() : savedDescription);
-      setSelectedFoods(availableItems.map(item => ({ foodId: item.foodId, quantity: item.quantity })));
+      setDescription(savedDescription.startsWith(portions) ? savedDescription.slice(portions.length).replace(/^\s*\|\s*/, '').trim() : '');
+      setSelectedFoods(items.map(item => ({
+        foodId: item.foodId,
+        description: item.name,
+        dataType: item.dataType ?? '',
+        brandName: item.brandName ?? '',
+        source: item.dataSource ?? 'USDA FoodData Central',
+        gramsText: String(item.grams),
+        caloriesPer100g: item.caloriesPer100g ?? Number(item.calories) * 100 / Number(item.grams),
+        carbsPer100g: item.carbsPer100g ?? (item.carbs == null ? undefined : Number(item.carbs) * 100 / Number(item.grams)),
+        proteinPer100g: item.proteinPer100g ?? (item.protein == null ? undefined : Number(item.protein) * 100 / Number(item.grams)),
+        fatPer100g: item.fatPer100g ?? (item.fat == null ? undefined : Number(item.fat) * 100 / Number(item.grams)),
+      })));
     } else {
       setDescription(meal.description ?? '');
       setSelectedFoods([]);
@@ -126,16 +165,12 @@ export default function HomeScreen() {
     setVisible(true);
   };
 
-  const addFood = (foodId: string) => {
-    setSelectedFoods(current => current.some(item => item.foodId === foodId) ? current : [...current, { foodId, quantity: 1 }]);
+  const addFood = (food: FoodSearchResult) => {
+    setSelectedFoods(current => current.some(item => item.foodId === food.foodId) ? current : [...current, { ...food, gramsText: '100' }]);
     setFormError('');
   };
 
-  const changeFoodQuantity = (foodId: string, change: number) => {
-    setSelectedFoods(current => current.map(item => item.foodId === foodId
-      ? { ...item, quantity: Math.min(20, Math.max(0.5, item.quantity + change)) }
-      : item));
-  };
+  const changeFoodGrams = (foodId: string, gramsText: string) => setSelectedFoods(current => current.map(item => item.foodId === foodId ? { ...item, gramsText: gramsText.replace(/[^\d.,]/g, '') } : item));
 
   const removeFood = (foodId: string) => setSelectedFoods(current => current.filter(item => item.foodId !== foodId));
 
@@ -180,24 +215,27 @@ export default function HomeScreen() {
       } finally { setSaving(false); }
       return;
     }
-    if (!selectedDetails.length || calculatedCalories <= 0) {
+    if (!selectedDetails.length || selectedDetails.some(item => item.grams <= 0) || calculatedCalories <= 0) {
       setFormError('Adicione pelo menos um alimento à refeição.');
       return;
     }
     setSaving(true);
     try {
       const section = MEAL_SECTIONS.find(item => item.key === type)!;
-      const foodNames = selectedDetails.slice(0, 3).map(item => item.name).join(', ');
-      const extraFoods = selectedDetails.length > 3 ? ` +${selectedDetails.length - 3}` : '';
-      const portions = selectedDetails.map(item => `${formatFoodQuantity(item.quantity)} ${item.portionLabel} de ${item.name} (~${item.grams} g)`).join(' • ');
+      const portions = selectedDetails.map(item => `${item.description} - ${item.grams} g - ${item.calories} kcal`).join(' | ');
       const data = {
-        name: type === 'snack' ? `${foodNames}${extraFoods}` : `${section.label} — ${foodNames}${extraFoods}`,
-        description: description.trim() ? `${portions} • ${description.trim()}` : portions,
+        name: section.label,
+        description: (description.trim() ? `${portions} | ${description.trim()}` : portions).slice(0, 500),
         calories: calculatedCalories,
         carbs: roundMacro(macroValues.carbs),
         protein: roundMacro(macroValues.protein),
         fat: roundMacro(macroValues.fat),
-        items: selectedDetails,
+        items: selectedDetails.map(item => ({
+          foodId: item.foodId, name: item.description, quantity: item.grams, portionLabel: 'g', grams: item.grams,
+          calories: item.calories, carbs: item.carbs ?? 0, protein: item.protein ?? 0, fat: item.fat ?? 0,
+          caloriesPer100g: item.caloriesPer100g, carbsPer100g: item.carbsPer100g, proteinPer100g: item.proteinPer100g,
+          fatPer100g: item.fatPer100g, dataSource: item.source, dataType: item.dataType, brandName: item.brandName,
+        })),
         source: editingMeal?.source ?? 'manual' as const,
         referenceId: editingMeal?.referenceId,
       };
@@ -245,7 +283,7 @@ export default function HomeScreen() {
           <View style={styles.mealCardHeader}><View style={[styles.mealIcon, { backgroundColor: `${section.accent}18` }]}><Ionicons name={section.icon} size={20} color={section.accent} /></View><View style={{ flex: 1 }}><Text style={[styles.mealTitle, { color: C.text }]}>{section.label}</Text><Text style={[styles.mealSummary, { color: C.textMuted }]}>{entries.length ? `${entries.length} ${entries.length === 1 ? 'registro' : 'registros'}` : 'Nenhum registro'}</Text></View><Text style={[styles.mealTotal, { color: entries.length ? C.text : C.textDim }]}>{total} kcal</Text><TouchableOpacity accessibilityLabel={`Adicionar em ${section.label}`} onPress={() => openMealForm(section.key)} style={[styles.addCircle, { backgroundColor: C.primarySoft }]}><Ionicons name="add" size={20} color={C.primary} /></TouchableOpacity></View>
           {entries.length > 0 && <View style={[styles.entryList, { borderTopColor: C.border }]}>{entries.map((meal, index) => {
             const hasMacros = meal.carbs !== undefined || meal.protein !== undefined || meal.fat !== undefined;
-            return <View key={meal.id} style={[styles.entry, index < entries.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={styles.entryContent}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text numberOfLines={1} style={[styles.entryName, { color: C.text }]}>{meal.name.replace(`${section.label} — `, '')}</Text>{meal.source === 'nutria' && <View style={[styles.aiTag, { backgroundColor: C.primarySoft }]}><Ionicons name="sparkles" size={10} color={C.primary} /><Text style={{ color: C.primary, fontSize: 9, fontWeight: '900' }}>NutriIA</Text></View>}</View>{!!meal.description && <Text numberOfLines={2} style={[styles.entryDescription, { color: C.textMuted }]}>{meal.description}</Text>}{hasMacros && <View style={styles.entryMacroRow}><Text style={[styles.entryMacro, { color: '#F97316' }]}>C {meal.carbs ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#3B82F6' }]}>P {meal.protein ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#CA8A04' }]}>G {meal.fat ?? 0}g</Text></View>}</View><View style={[styles.entryKcalBadge, { backgroundColor: C.primarySoft }]}><Text numberOfLines={1} style={[styles.entryKcal, { color: C.primary }]}>{meal.calories} kcal</Text></View></View>;
+            return <View key={meal.id} style={[styles.entry, index < entries.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={styles.entryContent}><Text numberOfLines={1} style={[styles.entryName, { color: C.text }]}>{meal.name.replace(`${section.label} — `, '')}</Text>{!!meal.description && <Text numberOfLines={2} style={[styles.entryDescription, { color: C.textMuted }]}>{meal.description}</Text>}{hasMacros && <View style={styles.entryMacroRow}><Text style={[styles.entryMacro, { color: '#F97316' }]}>C {meal.carbs ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#3B82F6' }]}>P {meal.protein ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#CA8A04' }]}>G {meal.fat ?? 0}g</Text></View>}</View><View style={[styles.entryKcalBadge, { backgroundColor: C.primarySoft }]}><Text numberOfLines={1} style={[styles.entryKcal, { color: C.primary }]}>{meal.calories} kcal</Text></View></View>;
           })}</View>}
         </View>;
       })}
@@ -256,7 +294,7 @@ export default function HomeScreen() {
 
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeMealForm}>
       <View style={[styles.modal, { backgroundColor: C.bg }]}>
-        <View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.modalTitle, { color: C.text }]}>{editingMeal ? 'Corrigir refeição' : 'Registrar refeição'}</Text><Text style={[styles.modalSubtitle, { color: C.textMuted }]}>Escolha os alimentos e ajuste as medidas caseiras.</Text></View><TouchableOpacity onPress={closeMealForm} style={[styles.close, { backgroundColor: C.surface }]}><Ionicons name="close" size={22} color={C.text} /></TouchableOpacity></View>
+        <View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.modalTitle, { color: C.text }]}>{editingMeal ? 'Corrigir refeição' : 'Registrar refeição'}</Text><Text style={[styles.modalSubtitle, { color: C.textMuted }]}>Pesquise o alimento, escolha a correspondência e informe o peso em gramas.</Text></View><TouchableOpacity onPress={closeMealForm} style={[styles.close, { backgroundColor: C.surface }]}><Ionicons name="close" size={22} color={C.text} /></TouchableOpacity></View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingBottom: 30 }}>
           {legacyEditMode ? <>
             <View style={[styles.emptySelection, { borderColor: C.border, gap: 10 }]}><Ionicons name="information-circle-outline" size={24} color={C.primary} /><Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 18 }}>Este registro não tem alimentos detalhados. Você pode corrigir os valores manualmente; a data original e os alimentos salvos serão preservados.</Text></View>
@@ -268,25 +306,24 @@ export default function HomeScreen() {
           <View>
             <Text style={[styles.fieldLabel, { color: C.textMuted }]}>ADICIONE O QUE VOCÊ COMEU</Text>
             <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.surface }]}><Ionicons name="search-outline" size={19} color={C.textMuted} /><TextInput value={foodSearch} onChangeText={setFoodSearch} placeholder="Buscar arroz, feijão, frango..." placeholderTextColor={C.textDim} style={[styles.searchInput, { color: C.text }]} />{!!foodSearch && <TouchableOpacity accessibilityLabel="Limpar busca" onPress={() => setFoodSearch('')}><Ionicons name="close-circle" size={19} color={C.textDim} /></TouchableOpacity>}</View>
-            <Text style={[styles.searchHint, { color: C.textMuted }]}>{normalizedSearch ? 'Resultados encontrados' : 'Alimentos mais usados'}</Text>
+            <Text style={[styles.searchHint, { color: C.textMuted }]}>{foodSearch.trim().length < 2 ? 'Digite pelo menos 2 letras para buscar' : searchingFoods ? 'Buscando na base nutricional...' : foodSearchError ? 'Busca indisponível' : `${foodResults.length} resultados da FoodData Central`}</Text>
             <View style={[styles.foodResults, { borderColor: C.border, backgroundColor: C.surface }]}>
-              {filteredFoods.length ? filteredFoods.map((food, index) => {
-                const added = selectedFoods.some(item => item.foodId === food.id);
-                const portion = calculateFood(food, 1);
-                return <TouchableOpacity key={food.id} disabled={added} onPress={() => addFood(food.id)} style={[styles.foodResult, index < filteredFoods.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={[styles.foodResultIcon, { backgroundColor: added ? C.successSoft : C.primarySoft }]}><Ionicons name={added ? 'checkmark' : 'add'} size={18} color={added ? C.success : C.primary} /></View><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={[styles.foodResultName, { color: C.text }]}>{food.name}</Text><Text numberOfLines={1} style={[styles.foodResultPortion, { color: C.textMuted }]}>1 {food.portion.singular} · ~{portion.calories} kcal</Text></View><Text style={{ color: added ? C.success : C.primary, fontSize: 10, fontWeight: '900' }}>{added ? 'ADICIONADO' : 'ADICIONAR'}</Text></TouchableOpacity>;
-              }) : <View style={styles.noFood}><Ionicons name="search-outline" size={23} color={C.textDim} /><Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 12 }}>Esse alimento ainda não está no catálogo local.</Text></View>}
+              {searchingFoods ? <View style={styles.noFood}><ActivityIndicator color={C.primary} /><Text style={{ color: C.textMuted, fontSize: 12 }}>Consultando alimentos...</Text></View> : foodSearchError ? <View style={styles.noFood}><Ionicons name="cloud-offline-outline" size={23} color={C.textDim} /><Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 12 }}>{foodSearchError}</Text></View> : foodResults.length ? foodResults.map((food, index) => {
+                const added = selectedFoods.some(item => item.foodId === food.foodId);
+                return <TouchableOpacity key={food.foodId} disabled={added} onPress={() => addFood(food)} style={[styles.foodResult, index < foodResults.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={[styles.foodResultIcon, { backgroundColor: added ? C.successSoft : C.primarySoft }]}><Ionicons name={added ? 'checkmark' : 'add'} size={18} color={added ? C.success : C.primary} /></View><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={2} style={[styles.foodResultName, { color: C.text }]}>{food.description}</Text><Text numberOfLines={1} style={[styles.foodResultPortion, { color: C.textMuted }]}>{food.dataType}{food.brandName ? ` · ${food.brandName}` : ''} · {food.caloriesPer100g} kcal/100 g</Text></View><Text style={{ color: added ? C.success : C.primary, fontSize: 10, fontWeight: '900' }}>{added ? 'ADICIONADO' : 'ADICIONAR'}</Text></TouchableOpacity>;
+              }) : <View style={styles.noFood}><Ionicons name="search-outline" size={23} color={C.textDim} /><Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 12 }}>{foodSearch.trim().length < 2 ? 'Os resultados reais aparecerão aqui.' : 'Nenhum resultado. Tente outro nome ou uma descrição mais simples.'}</Text></View>}
             </View>
           </View>
 
           <View>
             <Text style={[styles.fieldLabel, { color: C.textMuted }]}>MINHA REFEIÇÃO ({selectedDetails.length})</Text>
-            {selectedDetails.length ? <View style={[styles.selectedList, { borderColor: C.border, backgroundColor: C.surface }]}>{selectedDetails.map((item, index) => <View key={item.foodId} style={[styles.selectedFood, index < selectedDetails.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={[styles.selectedFoodName, { color: C.text }]}>{item.name}</Text><Text style={[styles.selectedFoodPortion, { color: C.textMuted }]}>{formatFoodQuantity(item.quantity)} {item.portionLabel} · ~{item.grams} g · {item.calories} kcal</Text></View><View style={styles.quantityControls}><TouchableOpacity accessibilityLabel={`Diminuir ${item.name}`} onPress={() => changeFoodQuantity(item.foodId, -0.5)} style={[styles.quantityButton, { backgroundColor: C.surface2 }]}><Ionicons name="remove" size={17} color={C.text} /></TouchableOpacity><Text style={[styles.quantityValue, { color: C.text }]}>{formatFoodQuantity(item.quantity)}</Text><TouchableOpacity accessibilityLabel={`Aumentar ${item.name}`} onPress={() => changeFoodQuantity(item.foodId, 0.5)} style={[styles.quantityButton, { backgroundColor: C.primarySoft }]}><Ionicons name="add" size={17} color={C.primary} /></TouchableOpacity><TouchableOpacity accessibilityLabel={`Remover ${item.name}`} onPress={() => removeFood(item.foodId)} style={[styles.removeFoodButton, { backgroundColor: C.dangerSoft }]}><Ionicons name="trash-outline" size={16} color={C.danger} /></TouchableOpacity></View></View>)}</View> : <View style={[styles.emptySelection, { borderColor: C.border }]}><Ionicons name="restaurant-outline" size={24} color={C.textDim} /><Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center' }}>Os alimentos adicionados aparecerão aqui para você ajustar a quantidade.</Text></View>}
+            {selectedDetails.length ? <View style={[styles.selectedList, { borderColor: C.border, backgroundColor: C.surface }]}>{selectedDetails.map((item, index) => <View key={item.foodId} style={[styles.selectedFood, index < selectedDetails.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={2} style={[styles.selectedFoodName, { color: C.text }]}>{item.description}</Text><Text style={[styles.selectedFoodPortion, { color: C.textMuted }]}>{item.calories} kcal · {item.grams} g{item.brandName ? ` · ${item.brandName}` : ''}</Text><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}><TextInput accessibilityLabel={`Quantidade em gramas de ${item.description}`} value={item.gramsText} onChangeText={value => changeFoodGrams(item.foodId, value)} keyboardType="decimal-pad" placeholder="Gramas" placeholderTextColor={C.textDim} style={[styles.gramInput, { color: C.text, borderColor: C.border, backgroundColor: C.surface2 }]} /><Text style={{ color: C.textMuted, fontSize: 12 }}>g</Text></View></View><TouchableOpacity accessibilityLabel={`Remover ${item.description}`} onPress={() => removeFood(item.foodId)} style={[styles.removeFoodButton, { backgroundColor: C.dangerSoft }]}><Ionicons name="trash-outline" size={16} color={C.danger} /></TouchableOpacity></View>)}</View> : <View style={[styles.emptySelection, { borderColor: C.border }]}><Ionicons name="restaurant-outline" size={24} color={C.textDim} /><Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center' }}>Escolha um resultado e informe a quantidade em gramas.</Text></View>}
           </View>
 
           <View style={[styles.calculatedCard, { backgroundColor: C.primarySoft }]}><View style={[styles.calculatedIcon, { backgroundColor: C.primary }]}><Ionicons name="sparkles" size={21} color="#fff" /></View><View style={{ flex: 1, minWidth: 0 }}><Text style={[styles.calculatedLabel, { color: C.textMuted }]}>ESTIMATIVA DA REFEIÇÃO</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.calculatedValue, { color: C.text }]}>{calculatedCalories} kcal</Text><View style={styles.calculatedMacros}><Text style={{ color: '#F97316', fontSize: 10, fontWeight: '900' }}>C {roundMacro(macroValues.carbs)}g</Text><Text style={{ color: '#3B82F6', fontSize: 10, fontWeight: '900' }}>P {roundMacro(macroValues.protein)}g</Text><Text style={{ color: '#CA8A04', fontSize: 10, fontWeight: '900' }}>G {roundMacro(macroValues.fat)}g</Text></View></View></View>
           </>}
           <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>OBSERVAÇÃO (OPCIONAL)</Text><TextInput value={description} onChangeText={setDescription} placeholder="Ex.: preparado com pouco óleo" placeholderTextColor={C.textDim} multiline style={[styles.input, styles.textarea, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]} /></View>
-          <View style={[styles.estimateNotice, { backgroundColor: C.warningSoft }]}><Ionicons name="information-circle-outline" size={18} color={C.warning} /><Text style={{ color: C.textMuted, flex: 1, fontSize: 10, lineHeight: 15 }}>Não precisa pesar. As medidas ajudam a estimar; tamanho da porção, marca e modo de preparo podem alterar os valores.</Text></View>
+          <View style={[styles.estimateNotice, { backgroundColor: C.warningSoft }]}><Ionicons name="information-circle-outline" size={18} color={C.warning} /><Text style={{ color: C.textMuted, flex: 1, fontSize: 10, lineHeight: 15 }}>Calorias e macros vêm da FoodData Central por 100 g e são recalculados pela quantidade informada. Preparo e marca podem alterar a composição; confira se selecionou a correspondência correta.</Text></View>
           {!!formError && <View style={[styles.formError, { backgroundColor: C.dangerSoft }]}><Ionicons name="alert-circle-outline" size={17} color={C.danger} /><Text style={{ color: C.danger, flex: 1, fontSize: 12 }}>{formError}</Text></View>}
           <TouchableOpacity disabled={saving} onPress={() => void save()} style={[styles.saveButton, { backgroundColor: C.primary }]}>{saving ? <ActivityIndicator color="#fff" /> : <><Ionicons name="checkmark" size={20} color="#fff" /><Text style={styles.buttonText}>{editingMeal ? 'Salvar correções' : 'Salvar refeição'}</Text></>}</TouchableOpacity>
         </ScrollView>
@@ -325,6 +362,6 @@ const styles = StyleSheet.create({
   shortcuts: { flexDirection: 'row', gap: 9, marginTop: 2 }, shortcut: { flex: 1, alignItems: 'center', borderRadius: 14, paddingVertical: 13, gap: 6 }, shortcutText: { fontSize: 10, fontWeight: '700' },
   modal: { flex: 1, padding: 22, paddingTop: 28, gap: 20 }, modalTitle: { fontSize: 24, fontWeight: '900' }, modalSubtitle: { fontSize: 12, marginTop: 3 }, close: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, fieldLabel: { fontSize: 10, fontWeight: '900', letterSpacing: .8, marginBottom: 8 }, typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, typeOption: { width: '48%', flexGrow: 1, borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 7 },
   searchBox: { minHeight: 50, borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, searchInput: { flex: 1, minWidth: 0, fontSize: 14, paddingVertical: 11 }, searchHint: { fontSize: 10, fontWeight: '800', marginTop: 9, marginBottom: 6 }, foodResults: { borderWidth: 1, borderRadius: 15, overflow: 'hidden' }, foodResult: { minHeight: 61, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 10 }, foodResultIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, foodResultName: { fontSize: 12, fontWeight: '900' }, foodResultPortion: { fontSize: 10, marginTop: 3 }, noFood: { minHeight: 95, alignItems: 'center', justifyContent: 'center', padding: 15, gap: 7 },
-  selectedList: { borderWidth: 1, borderRadius: 15, overflow: 'hidden' }, selectedFood: { padding: 12, gap: 10 }, selectedFoodName: { fontSize: 13, fontWeight: '900' }, selectedFoodPortion: { fontSize: 10, lineHeight: 15, marginTop: 3 }, quantityControls: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 7 }, quantityButton: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }, quantityValue: { minWidth: 25, textAlign: 'center', fontSize: 12, fontWeight: '900' }, removeFoodButton: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }, emptySelection: { minHeight: 105, borderWidth: 1, borderStyle: 'dashed', borderRadius: 15, alignItems: 'center', justifyContent: 'center', padding: 18, gap: 7 },
+  selectedList: { borderWidth: 1, borderRadius: 15, overflow: 'hidden' }, selectedFood: { padding: 12, gap: 10, flexDirection: 'row', alignItems: 'center' }, selectedFoodName: { fontSize: 13, fontWeight: '900' }, selectedFoodPortion: { fontSize: 10, lineHeight: 15, marginTop: 3 }, gramInput: { width: 105, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, fontSize: 14, fontWeight: '800' }, removeFoodButton: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }, emptySelection: { minHeight: 105, borderWidth: 1, borderStyle: 'dashed', borderRadius: 15, alignItems: 'center', justifyContent: 'center', padding: 18, gap: 7 },
   input: { borderWidth: 1, borderRadius: 14, padding: 14, fontSize: 14 }, textarea: { minHeight: 78, textAlignVertical: 'top' }, calculatedCard: { borderRadius: 16, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11 }, calculatedIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, calculatedLabel: { fontSize: 9, fontWeight: '900', letterSpacing: .7 }, calculatedValue: { fontSize: 23, fontWeight: '900', marginTop: 1 }, calculatedMacros: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 3 }, estimateNotice: { borderRadius: 13, padding: 11, flexDirection: 'row', gap: 8, alignItems: 'flex-start' }, formError: { borderRadius: 12, padding: 11, flexDirection: 'row', gap: 7, alignItems: 'center' }, saveButton: { minHeight: 54, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 }, buttonText: { color: '#fff', fontSize: 15, fontWeight: '900' },
 });

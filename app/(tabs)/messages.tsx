@@ -1,221 +1,179 @@
+import { useAuth } from '@/context/auth';
 import { usePremiumTheme } from '@/context/theme';
-import { useAppLayout } from '@/hooks/useAppLayout';
-import { useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ChatAPI, type ChatMessage } from '@/services/api';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-const NUTRITIONISTS = [
-  { id: '1', name: 'Dra. Ana Beatriz',   specialty: 'Nutrição Esportiva',  crn: 'CRN-3 12345', rating: 4.9, patients: 128, online: true,  avatar: '👩‍⚕️', bio: 'Especialista em nutrição esportiva e emagrecimento. 8 anos de experiência.',          initialMsg: 'Olá! Sou a Dra. Ana Beatriz, sua nutricionista. Como posso ajudar você hoje?' },
-  { id: '2', name: 'Dr. Carlos Mendes',  specialty: 'Nutrição Clínica',    crn: 'CRN-3 67890', rating: 4.7, patients: 95,  online: false, avatar: '👨‍⚕️', bio: 'Foco em doenças crônicas, diabetes e hipertensão. Atendimento humanizado.',          initialMsg: 'Oi! Sou o Dr. Carlos. Estou aqui para te ajudar a alcançar seus objetivos nutricionais!' },
-  { id: '3', name: 'Dra. Fernanda Lima', specialty: 'Nutrição Funcional',  crn: 'CRN-3 54321', rating: 4.8, patients: 210, online: true,  avatar: '👩‍💼', bio: 'Nutrição funcional e integrativa. Especialista em saúde intestinal e imunidade.', initialMsg: 'Olá! Sou a Dra. Fernanda. Vamos trabalhar juntos para melhorar sua saúde de forma integral?' },
-];
-const NUTRI_RESPONSES: Record<string, string[]> = {
-  '1': ['Para seu treino, recomendo aumentar a ingestão de carboidratos complexos 1h antes do exercício.', 'A proteína pós-treino é essencial! Tente consumir 20-30g em até 30 minutos após o exercício.', 'Hidratação é chave para a performance. Beba pelo menos 500ml antes de treinar.'],
-  '2': ['Para controle glicêmico, prefira alimentos de baixo índice glicêmico nas refeições principais.', 'Reduza o sódio gradualmente — isso ajuda muito no controle da pressão arterial.', 'Fibras solúveis são suas aliadas! Aveia, maçã e leguminosas são ótimas opções.'],
-  '3': ['A saúde intestinal é a base de tudo. Inclua probióticos naturais como kefir e iogurte.', 'Alimentos anti-inflamatórios como cúrcuma, gengibre e ômega-3 fazem toda a diferença.', 'Seu microbioma agradece quando você varia os vegetais. Tente comer pelo menos 30 tipos por semana!'],
-};
-const AI_RESPONSES = ['Com base no seu perfil, recomendo aumentar a ingestão de proteínas no café da manhã.', 'Seu IMC está dentro da faixa saudável. Continue mantendo a consistência no plano!', 'Para perder peso, um déficit de 300-400 kcal/dia é ideal para resultados sustentáveis.', 'Hidratação é fundamental! Beba pelo menos 2L de água por dia, especialmente antes das refeições.'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain'];
+const MAX_BYTES = 8 * 1024 * 1024;
 
-type Msg = { id: number; text: string; from: 'user' | 'other'; time: string };
-const getTime = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-function ChatView({ title, subtitle, avatar, isAI, responses, initialMsg, onBack }: { title: string; subtitle: string; avatar: string; isAI?: boolean; responses: string[]; initialMsg: string; onBack: () => void }) {
+export default function MessagesScreen() {
+  const { user, vinculo } = useAuth();
   const { colors } = usePremiumTheme();
-  const { topPad } = useAppLayout();
-  const [messages, setMessages] = useState<Msg[]>([{ id: 1, text: initialMsg, from: 'other', time: getTime() }]);
-  const [input, setInput]       = useState('');
-  const [typing, setTyping]     = useState(false);
-  const listRef = useRef<FlatList>(null);
-  const PROMPTS = isAI ? ['Como melhorar minha dieta?', 'Sugestão de lanche', 'Dicas de hidratação', 'Calcular calorias'] : ['Revisar meu plano', 'Tenho uma dúvida', 'Ajustar refeições', 'Próxima consulta'];
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [text, setText] = useState('');
+  const [attachment, setAttachment] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const list = useRef<FlatList<ChatMessage>>(null);
+  const linked = !!user?.id && vinculo?.status === 'ativo' && !!user.nutricionistaId;
 
-  const send = (text?: string) => {
-    const msg = (text ?? input).trim(); if (!msg) return;
-    setMessages(prev => [...prev, { id: Date.now(), text: msg, from: 'user', time: getTime() }]);
-    setInput(''); setTyping(true);
-    setTimeout(() => {
-      setMessages(prev => [...prev, { id: Date.now() + 1, text: responses[Math.floor(Math.random() * responses.length)], from: 'other', time: getTime() }]);
-      setTyping(false);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    }, 1000 + Math.random() * 800);
+  const refresh = useCallback(async () => {
+    if (!linked) { setLoading(false); return; }
+    try {
+      const rows = await ChatAPI.messages();
+      setMessages(rows); setError('');
+    } catch (e: any) { setError(e?.message || 'Não foi possível carregar o chat.'); }
+    finally { setLoading(false); }
+  }, [linked]);
+
+  useEffect(() => {
+    void refresh();
+    if (!linked) return;
+    const timer = setInterval(() => void refresh(), 5000);
+    return () => clearInterval(timer);
+  }, [refresh, linked]);
+
+  const addPicked = (asset: any) => {
+    if (!asset) return;
+    const type = asset.mimeType || asset.type || 'application/octet-stream';
+    const size = asset.size ?? asset.fileSize;
+    if (!ALLOWED_TYPES.includes(type.toLowerCase())) return Alert.alert('Formato não permitido', 'Escolha JPG, PNG, WEBP, PDF ou TXT.');
+    if (size != null && size > MAX_BYTES) return Alert.alert('Arquivo muito grande', 'O limite por anexo é 8 MB.');
+    setAttachment({ ...asset, mimeType: type });
   };
 
-  return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={[cs.header, { backgroundColor: colors.bg, borderBottomColor: colors.border, paddingTop: topPad }]}>
-        <TouchableOpacity onPress={onBack} style={[cs.backBtn, { backgroundColor: colors.surface }]}>
-          <Ionicons name="arrow-back" size={20} color={colors.text} />
-        </TouchableOpacity>
-        <View style={[cs.headerAvatar, { backgroundColor: colors.surface2 }]}>
-          <Text style={{ fontSize: 22 }}>{avatar}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[cs.headerTitle, { color: colors.text }]}>{title}</Text>
-          <Text style={[cs.headerSub, { color: colors.textMuted }]}>{subtitle}</Text>
-        </View>
-        <View style={[cs.onlineDot, { backgroundColor: isAI ? colors.primary : colors.warning }]} />
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+      if (!result.canceled) addPicked(result.assets[0]);
+    } catch { Alert.alert('Galeria indisponível', 'Não foi possível selecionar a foto.'); }
+  };
+
+  const pickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: ALLOWED_TYPES, copyToCacheDirectory: true });
+      if (!result.canceled) addPicked(result.assets[0]);
+    } catch { Alert.alert('Arquivos indisponíveis', 'Não foi possível selecionar o arquivo.'); }
+  };
+
+  const send = async () => {
+    if ((!text.trim() && !attachment) || sending) return;
+    setSending(true); setError('');
+    const form = new FormData();
+    if (text.trim()) form.append('texto', text.trim());
+    if (attachment) {
+      const filePart = Platform.OS === 'web' && attachment.file
+        ? attachment.file
+        : { uri: attachment.uri, name: attachment.name || attachment.fileName || 'anexo', type: attachment.mimeType };
+      form.append('arquivo', filePart as any);
+    }
+    try {
+      await ChatAPI.send(form);
+      setText(''); setAttachment(null);
+      await refresh();
+      setTimeout(() => list.current?.scrollToEnd({ animated: true }), 100);
+    } catch (e: any) { setError(e?.message || 'Falha ao enviar a mensagem.'); }
+    finally { setSending(false); }
+  };
+
+  const download = async (message: ChatMessage) => {
+    try {
+      const response = await ChatAPI.fetchAttachment(message.id);
+      const blob = await response.blob();
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a'); anchor.href = url; anchor.download = message.arquivoNome || 'anexo'; anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+        return;
+      }
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      const base64 = btoa(binary);
+      const path = `${FileSystem.cacheDirectory}${(message.arquivoNome || 'anexo').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      await FileSystem.writeAsStringAsync(path, base64, { encoding: FileSystem.EncodingType.Base64 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path);
+      else Alert.alert('Arquivo salvo', path);
+    } catch (e: any) { setError(e?.message || 'Não foi possível abrir o anexo.'); }
+  };
+
+  const s = styles(colors);
+  const renderMessage = ({ item }: { item: ChatMessage }) => {
+    const mine = item.remetenteTipo === 'paciente';
+    const isImage = item.arquivoTipo?.startsWith('image/');
+    return <View style={[s.messageRow, mine ? s.mineRow : s.theirRow]}>
+      <View style={[s.bubble, mine ? s.mineBubble : s.theirBubble]}>
+        {!mine && <Text style={s.sender}>{item.remetenteNome}</Text>}
+        {item.texto ? <Text style={s.messageText}>{item.texto}</Text> : null}
+        {item.arquivoNome ? <Pressable onPress={() => void download(item)} style={s.fileCard} accessibilityRole="button" accessibilityLabel={`Abrir ${item.arquivoNome}`}>
+          <Ionicons name={isImage ? 'image-outline' : 'document-text-outline'} size={22} color={colors.primaryDark} />
+          <View style={{ flex: 1 }}><Text numberOfLines={1} style={s.fileName}>{item.arquivoNome}</Text><Text style={s.fileHint}>Toque para abrir ou compartilhar</Text></View>
+          <Ionicons name="download-outline" size={19} color={colors.primaryDark} />
+        </Pressable> : null}
+        <Text style={s.time}>{new Date(item.criadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</Text>
       </View>
+    </View>;
+  };
 
-      {messages.length === 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[cs.promptsScroll, { borderBottomColor: colors.border }]} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-          {PROMPTS.map(p => (
-            <TouchableOpacity key={p} style={[cs.promptCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => send(p)}>
-              <Text style={[cs.promptText, { color: colors.text }]}>{p}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
+  if (!linked) return <SafeAreaView style={[s.page, { justifyContent: 'center', padding: 28 }]}>
+    <View style={s.emptyCard}><Ionicons name="chatbubbles-outline" size={42} color={colors.primary} />
+      <Text style={s.title}>Chat com nutricionista</Text>
+      <Text style={s.subtitle}>{vinculo?.status === 'pendente' ? 'O chat será liberado quando o nutricionista aceitar seu vínculo.' : 'Vincule um nutricionista ao seu perfil para conversar por aqui.'}</Text>
+    </View>
+  </SafeAreaView>;
 
-      <FlatList ref={listRef} data={messages} keyExtractor={m => String(m.id)} contentContainerStyle={{ padding: 16, gap: 10 }}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        renderItem={({ item: m }) => (
-          <View style={[cs.msgRow, m.from === 'user' && cs.msgRowUser]}>
-            {m.from !== 'user' && <View style={[cs.otherAvatar, { backgroundColor: colors.surface2 }]}><Text style={{ fontSize: 14 }}>{avatar}</Text></View>}
-            <View style={[cs.bubble, m.from === 'user' ? { backgroundColor: colors.primary } : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
-              <Text style={[cs.bubbleText, { color: m.from === 'user' ? '#fff' : colors.text }]}>{m.text}</Text>
-              <Text style={[cs.bubbleTime, { color: m.from === 'user' ? 'rgba(255,255,255,0.6)' : colors.textMuted }]}>{m.time}</Text>
-            </View>
-          </View>
-        )}
-        ListFooterComponent={typing ? (
-          <View style={cs.msgRow}>
-            <View style={[cs.otherAvatar, { backgroundColor: colors.surface2 }]}><Text style={{ fontSize: 14 }}>{avatar}</Text></View>
-            <View style={[cs.bubble, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
-              <Text style={[cs.bubbleText, { color: colors.textMuted, letterSpacing: 3 }]}>● ● ●</Text>
-            </View>
-          </View>
-        ) : null}
-      />
-
-      <View style={[cs.composer, { borderTopColor: colors.border, backgroundColor: colors.bg }]}>
-        <TextInput style={[cs.composerInput, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]} placeholder="Digite uma mensagem..." value={input} onChangeText={setInput} placeholderTextColor={colors.textMuted} onSubmitEditing={() => send()} returnKeyType="send" multiline />
-        <TouchableOpacity onPress={() => send()} style={[cs.sendBtn, { backgroundColor: colors.primary, opacity: input.trim() ? 1 : 0.4 }]}>
-          <Ionicons name="arrow-up" size={18} color="#fff" />
-        </TouchableOpacity>
+  return <SafeAreaView style={s.page} edges={['top', 'left', 'right']}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
+      <View style={s.header}>
+        <View style={s.avatar}><Ionicons name="person" size={21} color={colors.primaryDark} /></View>
+        <View style={{ flex: 1 }}><Text style={s.title}>{vinculo?.nutricionista.nome || 'Nutricionista'}</Text><Text style={s.subtitle}>Seu nutricionista vinculado</Text></View>
+        <View style={s.onlineDot} /><Text style={s.secure}>Privado</Text>
+      </View>
+      {loading ? <View style={s.loader}><ActivityIndicator color={colors.primary} /><Text style={s.subtitle}>Carregando conversa…</Text></View> :
+        <FlatList ref={list} data={messages} keyExtractor={item => String(item.id)} renderItem={renderMessage} contentContainerStyle={s.list} onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })} ListEmptyComponent={<Text style={s.emptyText}>Envie uma mensagem para iniciar sua conversa.</Text>} />}
+      {error ? <Text style={s.error} accessibilityRole="alert">{error}</Text> : null}
+      {attachment ? <View style={s.attachmentPreview}><Ionicons name="attach" size={18} color={colors.primaryDark} /><Text numberOfLines={1} style={{ flex: 1, color: colors.text }}>{attachment.name || attachment.fileName || 'Foto selecionada'}</Text><Pressable onPress={() => setAttachment(null)} accessibilityLabel="Remover anexo"><Ionicons name="close-circle" size={20} color={colors.textMuted} /></Pressable></View> : null}
+      <View style={s.composer}>
+        <Pressable onPress={() => void pickImage()} style={s.attachButton} accessibilityLabel="Anexar foto"><Ionicons name="image-outline" size={22} color={colors.primaryDark} /></Pressable>
+        <Pressable onPress={() => void pickFile()} style={s.attachButton} accessibilityLabel="Anexar arquivo"><Ionicons name="attach" size={22} color={colors.primaryDark} /></Pressable>
+        <TextInput value={text} onChangeText={setText} multiline maxLength={4000} placeholder="Mensagem…" placeholderTextColor={colors.textDim} style={s.input} accessibilityLabel="Escreva uma mensagem" />
+        <Pressable onPress={() => void send()} disabled={sending || (!text.trim() && !attachment)} style={[s.sendButton, (sending || (!text.trim() && !attachment)) && { opacity: 0.5 }]} accessibilityLabel="Enviar mensagem">
+          {sending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="send" size={19} color="#fff" />}
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
-  );
+  </SafeAreaView>;
 }
 
-type ViewState = 'hub' | 'ai' | { nutriId: string };
-
-export default function MessagesHubScreen() {
-  const { colors } = usePremiumTheme();
-  const { topPad } = useAppLayout();
-  const [view, setView] = useState<ViewState>('hub');
-
-  if (view === 'ai') return <ChatView title="NutrIA" subtitle="Assistente de IA · Online" avatar="✦" isAI responses={AI_RESPONSES} initialMsg="Olá! Sou a NutrIA, sua assistente de nutrição inteligente. Como posso ajudar hoje?" onBack={() => setView('hub')} />;
-  if (typeof view === 'object') {
-    const n = NUTRITIONISTS.find(x => x.id === view.nutriId)!;
-    return <ChatView title={n.name} subtitle={`${n.specialty} · ${n.online ? 'Online' : 'Offline'}`} avatar={n.avatar} responses={NUTRI_RESPONSES[n.id]} initialMsg={n.initialMsg} onBack={() => setView('hub')} />;
-  }
-
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false}>
-        <Text style={[s.title, { color: colors.text }]}>Mensagens</Text>
-        <Text style={[s.subtitle, { color: colors.textMuted }]}>Seu hub de comunicação</Text>
-
-        {/* NutrIA */}
-        <TouchableOpacity style={[s.hubCard, { backgroundColor: '#F0FDF4', borderColor: colors.primary + '40' }]} onPress={() => setView('ai')}>
-          <View style={[s.hubAvatarCircle, { backgroundColor: colors.primary }]}>
-            <Ionicons name="sparkles" size={26} color="#fff" />
-          </View>
-          <View style={s.hubInfo}>
-            <Text style={[s.hubName, { color: colors.text }]}>NutrIA</Text>
-            <Text style={[s.hubSpec, { color: colors.textMuted }]}>Assistente de nutrição com IA</Text>
-            <View style={[s.badge, { backgroundColor: colors.primary + '20' }]}>
-              <View style={[s.badgeDot, { backgroundColor: colors.primary }]} />
-              <Text style={[s.badgeText, { color: colors.primary }]}>Online agora</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
-
-        <Text style={[s.sectionTitle, { color: colors.textMuted }]}>Nutricionistas disponíveis</Text>
-        {NUTRITIONISTS.map(n => (
-          <TouchableOpacity key={n.id} style={[s.nutriCard, { backgroundColor: colors.surface, shadowColor: '#000' }]} onPress={() => setView({ nutriId: n.id })}>
-            <View style={s.nutriTop}>
-              <View style={[s.nutriAvatar, { backgroundColor: colors.surface2 }]}>
-                <Text style={{ fontSize: 28 }}>{n.avatar}</Text>
-                {n.online && <View style={s.onlineIndicator} />}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.nutriName, { color: colors.text }]}>{n.name}</Text>
-                <Text style={[s.nutriSpec, { color: colors.primary }]}>{n.specialty}</Text>
-                <Text style={[s.nutriCrn, { color: colors.textMuted }]}>{n.crn}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  <Ionicons name="star" size={12} color={colors.warning} />
-                  <Text style={[s.ratingText, { color: colors.text }]}>{n.rating}</Text>
-                </View>
-                <Text style={[s.patientsText, { color: colors.textMuted }]}>{n.patients} pacientes</Text>
-              </View>
-            </View>
-            <Text style={[s.nutriBio, { color: colors.textMuted }]}>{n.bio}</Text>
-            <View style={s.nutriFooter}>
-              <View style={[s.badge, { backgroundColor: n.online ? colors.primary + '15' : colors.border }]}>
-                <View style={[s.badgeDot, { backgroundColor: n.online ? colors.primary : colors.textMuted }]} />
-                <Text style={[s.badgeText, { color: n.online ? colors.primary : colors.textMuted }]}>{n.online ? 'Online' : 'Offline'}</Text>
-              </View>
-              <TouchableOpacity style={[s.chatBtn, { backgroundColor: colors.primary }]} onPress={() => setView({ nutriId: n.id })}>
-                <Ionicons name="chatbubble-outline" size={13} color="#fff" />
-                <Text style={s.chatBtnText}>Iniciar chat</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        ))}
-        <View style={{ height: 100 }} />
-      </ScrollView>
-    </View>
-  );
-}
-
-const s = StyleSheet.create({
-  scroll:          { padding: 20, gap: 12 },
-  title:           { fontSize: 26, fontWeight: '900', letterSpacing: -1 },
-  subtitle:        { fontSize: 14, fontWeight: '500', marginBottom: 4 },
-  sectionTitle:    { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
-  hubCard:         { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 16, borderWidth: 1.5, gap: 14 },
-  hubAvatarCircle: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  hubInfo:         { flex: 1, gap: 4 },
-  hubName:         { fontSize: 16, fontWeight: '800' },
-  hubSpec:         { fontSize: 13, fontWeight: '500' },
-  nutriCard:       { borderRadius: 20, padding: 16, gap: 10, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  nutriTop:        { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  nutriAvatar:     { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  onlineIndicator: { position: 'absolute', bottom: 2, right: 2, width: 12, height: 12, borderRadius: 6, backgroundColor: '#22C55E', borderWidth: 2, borderColor: '#fff' },
-  nutriName:       { fontSize: 15, fontWeight: '800' },
-  nutriSpec:       { fontSize: 13, fontWeight: '600', marginTop: 1 },
-  nutriCrn:        { fontSize: 11, fontWeight: '500', marginTop: 1 },
-  ratingText:      { fontSize: 13, fontWeight: '800' },
-  patientsText:    { fontSize: 11, fontWeight: '500' },
-  nutriBio:        { fontSize: 13, lineHeight: 19, fontWeight: '500' },
-  nutriFooter:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  badge:           { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeDot:        { width: 6, height: 6, borderRadius: 3 },
-  badgeText:       { fontSize: 11, fontWeight: '700' },
-  chatBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
-  chatBtnText:     { fontSize: 12, fontWeight: '800', color: '#fff' },
-});
-
-const cs = StyleSheet.create({
-  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, gap: 10 },
-  backBtn:      { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  headerAvatar: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  headerTitle:  { fontSize: 15, fontWeight: '800' },
-  headerSub:    { fontSize: 11, fontWeight: '500' },
-  onlineDot:    { width: 10, height: 10, borderRadius: 5 },
-  promptsScroll:{ paddingVertical: 10, borderBottomWidth: 1 },
-  promptCard:   { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1 },
-  promptText:   { fontSize: 13, fontWeight: '600' },
-  msgRow:       { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 4 },
-  msgRowUser:   { flexDirection: 'row-reverse' },
-  otherAvatar:  { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  bubble:       { maxWidth: '80%', borderRadius: 18, padding: 12 },
-  bubbleText:   { fontSize: 14, lineHeight: 20, fontWeight: '500' },
-  bubbleTime:   { fontSize: 10, marginTop: 4, textAlign: 'right' },
-  composer:     { flexDirection: 'row', alignItems: 'flex-end', gap: 10, padding: 12, paddingBottom: Platform.OS === 'ios' ? 28 : 12, borderTopWidth: 1 },
-  composerInput:{ flex: 1, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, borderWidth: 1, maxHeight: 100 },
-  sendBtn:      { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+const styles = (c: ReturnType<typeof usePremiumTheme>['colors']) => StyleSheet.create({
+  page: { flex: 1, backgroundColor: c.bg },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 13, borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth, gap: 10, backgroundColor: c.surface },
+  avatar: { height: 42, width: 42, borderRadius: 21, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  title: { color: c.text, fontSize: 17, fontWeight: '700' }, subtitle: { color: c.textMuted, fontSize: 12, marginTop: 3 },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.success }, secure: { color: c.textMuted, fontSize: 11 },
+  list: { paddingHorizontal: 14, paddingVertical: 18, flexGrow: 1, justifyContent: 'flex-end' },
+  messageRow: { width: '100%', flexDirection: 'row', marginBottom: 10 }, mineRow: { justifyContent: 'flex-end' }, theirRow: { justifyContent: 'flex-start' },
+  bubble: { maxWidth: '86%', borderRadius: 17, paddingHorizontal: 13, paddingTop: 10, paddingBottom: 7, borderWidth: 1, borderColor: c.border },
+  mineBubble: { backgroundColor: c.bubbleMe, borderBottomRightRadius: 5 }, theirBubble: { backgroundColor: c.surface, borderBottomLeftRadius: 5 },
+  sender: { color: c.primaryDark, fontSize: 11, fontWeight: '700', marginBottom: 4 }, messageText: { color: c.text, fontSize: 15, lineHeight: 21 },
+  time: { color: c.textDim, fontSize: 10, textAlign: 'right', marginTop: 5 },
+  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, borderRadius: 12, backgroundColor: c.primarySoft, minWidth: 190, maxWidth: 270, marginTop: 3 },
+  fileName: { color: c.text, fontSize: 13, fontWeight: '600' }, fileHint: { color: c.textMuted, fontSize: 10, marginTop: 2 },
+  emptyCard: { alignItems: 'center', padding: 26, borderRadius: 22, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
+  emptyText: { textAlign: 'center', color: c.textMuted, marginTop: 20, alignSelf: 'center' },
+  loader: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  error: { color: c.danger, backgroundColor: c.dangerSoft, marginHorizontal: 12, padding: 9, borderRadius: 8, fontSize: 12 },
+  attachmentPreview: { marginHorizontal: 12, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 9, backgroundColor: c.surface, borderColor: c.border, borderWidth: 1, borderRadius: 10 },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', padding: 10, gap: 6, borderTopColor: c.border, borderTopWidth: StyleSheet.hairlineWidth, backgroundColor: c.surface },
+  attachButton: { width: 38, height: 42, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, maxHeight: 110, minHeight: 42, paddingHorizontal: 14, paddingVertical: 10, color: c.text, backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 22, fontSize: 15 },
+  sendButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
 });

@@ -2,6 +2,7 @@ const BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080').re
 let accessToken: string | null = null;
 
 export function setAccessToken(token: string | null) { accessToken = token; }
+export function getAccessToken() { return accessToken; }
 export function localDateString(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -45,7 +46,7 @@ const normalizeWater = (value: any): WaterEntry => ({
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
+  if (!(typeof FormData !== 'undefined' && options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   const raw = await response.text();
@@ -91,6 +92,7 @@ export type RegisterPayload = {
 
 export type AuthResponse = { token: string; paciente: Paciente };
 export type MealEntry = { id: number; mealType: string; description: string; calories: number; entryDate: string; createdAt: string; carbs?: number; protein?: number; fat?: number; items?: unknown[]; source?: string; referenceId?: string };
+export type FoodSearchResult = { foodId: string; description: string; dataType: string; brandName: string; caloriesPer100g: number; carbsPer100g?: number; proteinPer100g?: number; fatPer100g?: number; source: string };
 export type WaterEntry = { id: number; amountMl: number; entryDate: string; createdAt: string };
 export type MeasurementEntry = { id: number; weight?: string; waist?: string; hip?: string; arm?: string; bodyFat?: string; createdAt: string };
 const normalizeMeasurement = (value: any): MeasurementEntry => ({ id: value.id, weight: value.weight ?? value.peso, waist: value.waist ?? value.cintura, hip: value.hip ?? value.quadril, arm: value.arm ?? value.braco, bodyFat: value.bodyFat ?? value.gorduraCorporal, createdAt: value.createdAt ?? value.criadoEm ?? '' });
@@ -154,12 +156,13 @@ export const SolicitacoesAPI = {
 };
 
 export const DiaryAPI = {
+  searchFoods: (query: string) => request<FoodSearchResult[]>(`/api/alimentos/busca?query=${encodeURIComponent(query)}`),
   meals: async (date?: string) => (await request<any[]>(`/api/diario/refeicoes${date ? `?date=${encodeURIComponent(date)}` : ''}`)).map(normalizeMeal),
   addMeal: async (data: Partial<MealEntry> & Pick<MealEntry, 'mealType' | 'description' | 'calories'>) => normalizeMeal(await request<any>('/api/diario/refeicoes', {
-    method: 'POST', body: JSON.stringify({ nome: data.mealType, descricao: data.description, calorias: data.calories, carboidratos: data.carbs, proteinas: data.protein, gorduras: data.fat, itens: JSON.stringify(data.items ?? []), origem: data.source, referenciaId: data.referenceId, criadoEm: data.createdAt || data.entryDate || new Date().toISOString() }),
+    method: 'POST', body: JSON.stringify({ mealType: data.mealType, description: data.description, calories: data.calories, entryDate: data.entryDate || localDateString(), carbs: data.carbs, protein: data.protein, fat: data.fat, items: JSON.stringify(data.items ?? []) }),
   })),
   updateMeal: async (id: number, data: Partial<MealEntry> & Pick<MealEntry, 'mealType' | 'description' | 'calories'>) => normalizeMeal(await request<any>(`/api/diario/refeicoes/${id}`, {
-    method: 'PUT', body: JSON.stringify({ nome: data.mealType, descricao: data.description, calorias: data.calories, carboidratos: data.carbs, proteinas: data.protein, gorduras: data.fat, itens: JSON.stringify(data.items ?? []) }),
+    method: 'PUT', body: JSON.stringify({ mealType: data.mealType, description: data.description, calories: data.calories, entryDate: data.entryDate || localDateString(), carbs: data.carbs, protein: data.protein, fat: data.fat, items: JSON.stringify(data.items ?? []) }),
   })),
   deleteMeal: (id: number) => request<void>(`/api/diario/refeicoes/${id}`, { method: 'DELETE' }),
   water: async (date?: string) => (await request<any[]>(`/api/diario/agua${date ? `?date=${encodeURIComponent(date)}` : ''}`)).map(normalizeWater),
@@ -172,4 +175,23 @@ export const DiaryAPI = {
     method: 'POST', body: JSON.stringify({ peso: data.weight, cintura: data.waist, quadril: data.hip, braco: data.arm, gorduraCorporal: data.bodyFat, criadoEm: data.createdAt || new Date().toISOString(), referenciaId: data.referenceId }),
   })),
   deleteMeasurement: (id: number) => request<void>(`/api/diario/medidas/${id}`, { method: 'DELETE' }),
+};
+
+export type ChatMessage = {
+  id: number; pacienteId: number; remetenteTipo: 'paciente' | 'nutricionista'; remetenteId: number;
+  remetenteNome: string; texto?: string | null; criadoEm: string; lidoEm?: string | null;
+  arquivoNome?: string | null; arquivoTipo?: string | null; arquivoTamanho?: number | null;
+};
+
+export const ChatAPI = {
+  messages: (pacienteId?: number) => request<ChatMessage[]>(`/api/chat/mensagens${pacienteId ? `?pacienteId=${pacienteId}` : ''}`),
+  send: (form: FormData, pacienteId?: number) => request<ChatMessage>(`/api/chat/mensagens${pacienteId ? `?pacienteId=${pacienteId}` : ''}`, { method: 'POST', body: form }),
+  attachmentUrl: (messageId: number, pacienteId?: number) => `${BASE_URL}/api/chat/mensagens/${messageId}/arquivo${pacienteId ? `?pacienteId=${pacienteId}` : ''}`,
+  fetchAttachment: async (messageId: number, pacienteId?: number) => {
+    const headers = new Headers();
+    if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+    const response = await fetch(`${BASE_URL}/api/chat/mensagens/${messageId}/arquivo${pacienteId ? `?pacienteId=${pacienteId}` : ''}`, { headers });
+    if (!response.ok) throw new Error(`Não foi possível abrir o anexo (${response.status}).`);
+    return response;
+  },
 };

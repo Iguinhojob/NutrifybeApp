@@ -24,10 +24,25 @@ public class TrackingService {
     @Transactional
     public ApiDtos.MealResponse addMeal(long patientId, ApiDtos.MealInput input) {
         MealEntry meal = new MealEntry();
-        meal.setPatientId(patientId); meal.setMealType(input.mealType().trim());
-        meal.setDescription(input.description().trim()); meal.setCalories(input.calories());
+        applyMealInput(meal, input);
+        meal.setPatientId(patientId);
         meal.setEntryDate(input.entryDate() == null ? LocalDate.now() : input.entryDate());
         return ApiDtos.MealResponse.from(meals.save(meal));
+    }
+
+    @Transactional
+    public ApiDtos.MealResponse updateMeal(long patientId, long mealId, ApiDtos.MealInput input) {
+        MealEntry meal = meals.findByIdAndPatientId(mealId, patientId)
+                .orElseThrow(() -> ApiException.notFound("Refeição não encontrada."));
+        applyMealInput(meal, input);
+        if (input.entryDate() != null) meal.setEntryDate(input.entryDate());
+        return ApiDtos.MealResponse.from(meals.save(meal));
+    }
+
+    private static void applyMealInput(MealEntry meal, ApiDtos.MealInput input) {
+        meal.setMealType(input.mealType().trim());
+        meal.setDescription(input.description().trim()); meal.setCalories(input.calories());
+        meal.setCarbs(input.carbs()); meal.setProtein(input.protein()); meal.setFat(input.fat()); meal.setItems(input.items());
     }
 
     @Transactional

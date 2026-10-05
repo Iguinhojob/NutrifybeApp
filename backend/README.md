@@ -13,6 +13,12 @@ Gere valores aleatórios diferentes para `JWT_SECRET` e `ADMIN_API_KEY`, com pel
 
 O servidor de aplicação Java precisa alcançar o SQL Server do Somee pela porta TCP 1433. O Somee deve permitir conexões remotas a partir da rede/saída do servidor Java. Não exponha a porta do SQL Server ao app; somente a API HTTPS deve ser pública.
 
+## Busca nutricional do diario
+
+O endpoint autenticado `GET /api/alimentos/busca?query=...` consulta a USDA FoodData Central e devolve os nutrientes por 100 g. A chave e somente do backend: configure `FDC_API_KEY` no ambiente do servidor (obtenha uma chave gratuita no portal da [FoodData Central](https://fdc.nal.usda.gov/api-guide.html)). Em desenvolvimento, o backend usa `DEMO_KEY` se nenhuma chave for definida; ela tem limites baixos e serve apenas para testes. Nunca coloque essa chave em `EXPO_PUBLIC_*` nem no codigo do app.
+
+O app guarda na refeicao o alimento selecionado, a fonte, os gramas e os valores calculados para manter o historico coerente. A busca retorna correspondencias encontradas pela base, nao inventa valores para itens sem resultado. Escolha a descricao que melhor corresponde ao alimento, preparo ou marca consumidos.
+
 ## API
 
 - `POST /api/auth/register` — cria conta com senha derivada via PBKDF2 e retorna token JWT e perfil.

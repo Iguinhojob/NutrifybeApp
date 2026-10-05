@@ -1,13 +1,6 @@
 import { BrandLogo } from '@/components/brand-logo';
 import { usePremiumTheme } from '@/context/theme';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  useFonts,
-} from '@expo-google-fonts/inter';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -19,18 +12,11 @@ export default function WelcomeScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
-  const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const wide = width >= 900;
   const compact = !wide && height < 750;
   const background = isDark ? C.bg : '#F4FEFF';
   const accent = isDark ? C.primaryLight : C.primaryDark;
-  const font = (weight: 'regular' | 'medium' | 'semibold' | 'bold') => {
-    if (!fontsLoaded) return {};
-    return { fontFamily: {
-      regular: 'Inter_400Regular', medium: 'Inter_500Medium',
-      semibold: 'Inter_600SemiBold', bold: 'Inter_700Bold',
-    }[weight] };
-  };
+  const font = (_weight: 'regular' | 'medium' | 'semibold' | 'bold') => ({});
 
   return (
     <View style={[s.screen, { backgroundColor: background }]}>

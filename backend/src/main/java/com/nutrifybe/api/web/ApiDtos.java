@@ -43,12 +43,18 @@ public final class ApiDtos {
     public record ReviewRequest(@NotBlank @Pattern(regexp = "approved|rejected") String status) {}
     public record MealInput(@NotBlank @Size(max = 40) String mealType,
             @NotBlank @Size(max = 500) String description,
-            @NotNull @DecimalMin("1") @DecimalMax("10000") BigDecimal calories, LocalDate entryDate) {}
-    public record MealResponse(Long id, String mealType, String description, BigDecimal calories, LocalDate entryDate, Instant createdAt) {
+            @NotNull @DecimalMin("1") @DecimalMax("10000") BigDecimal calories, LocalDate entryDate,
+            @DecimalMin("0") BigDecimal carbs, @DecimalMin("0") BigDecimal protein,
+            @DecimalMin("0") BigDecimal fat, @Size(max = 20000) String items) {}
+    public record MealResponse(Long id, String mealType, String description, BigDecimal calories, LocalDate entryDate, Instant createdAt,
+            BigDecimal carbs, BigDecimal protein, BigDecimal fat, String items) {
         public static MealResponse from(com.nutrifybe.api.domain.MealEntry m) {
-            return new MealResponse(m.getId(), m.getMealType(), m.getDescription(), m.getCalories(), m.getEntryDate(), m.getCreatedAt());
+            return new MealResponse(m.getId(), m.getMealType(), m.getDescription(), m.getCalories(), m.getEntryDate(), m.getCreatedAt(), m.getCarbs(), m.getProtein(), m.getFat(), m.getItems());
         }
     }
+    public record FoodSearchResult(String foodId, String description, String dataType, String brandName,
+            BigDecimal caloriesPer100g, BigDecimal carbsPer100g, BigDecimal proteinPer100g, BigDecimal fatPer100g,
+            String source) {}
     public record WaterInput(@NotNull @Min(1) @Max(5000) Integer amountMl, LocalDate entryDate) {}
     public record WaterResponse(Long id, Integer amountMl, LocalDate entryDate, Instant createdAt) {
         public static WaterResponse from(com.nutrifybe.api.domain.WaterEntry w) {

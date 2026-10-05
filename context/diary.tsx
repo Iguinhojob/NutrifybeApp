@@ -15,6 +15,13 @@ export type MealFoodItem = {
   carbs: number;
   protein: number;
   fat: number;
+  caloriesPer100g?: number;
+  carbsPer100g?: number;
+  proteinPer100g?: number;
+  fatPer100g?: number;
+  dataSource?: string;
+  dataType?: string;
+  brandName?: string;
 };
 
 export type MealRecord = {
@@ -27,7 +34,7 @@ export type MealRecord = {
   fat?: number;
   items?: MealFoodItem[];
   createdAt: string;
-  source?: 'manual' | 'nutria';
+  source?: string;
   referenceId?: string;
 };
 export type WaterRecord = { id: string; amountMl: number; createdAt: string };
@@ -65,7 +72,7 @@ const DiaryContext = createContext<{
 
 const dateKey = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : localDateString(new Date(date));
 const todayKey = () => localDateString();
-const fromApiMeal = (meal: Awaited<ReturnType<typeof DiaryAPI.meals>>[number]): MealRecord => ({ id: String(meal.id), name: meal.mealType, description: meal.description, calories: meal.calories, carbs: meal.carbs, protein: meal.protein, fat: meal.fat, items: meal.items as MealFoodItem[], createdAt: meal.createdAt, source: meal.source === 'nutria' ? 'nutria' : 'manual', referenceId: meal.referenceId });
+const fromApiMeal = (meal: Awaited<ReturnType<typeof DiaryAPI.meals>>[number]): MealRecord => ({ id: String(meal.id), name: meal.mealType, description: meal.description, calories: meal.calories, carbs: meal.carbs, protein: meal.protein, fat: meal.fat, items: meal.items as MealFoodItem[], createdAt: meal.createdAt, source: 'manual', referenceId: meal.referenceId });
 const fromApiWater = (record: Awaited<ReturnType<typeof DiaryAPI.water>>[number]): WaterRecord => ({ id: String(record.id), amountMl: record.amountMl, createdAt: record.createdAt });
 const fromApiMeasurement = (record: Awaited<ReturnType<typeof DiaryAPI.measurements>>[number]): MeasurementRecord => ({ id: String(record.id), weight: record.weight, waist: record.waist, hip: record.hip, arm: record.arm, bodyFat: record.bodyFat, createdAt: record.createdAt });
 
