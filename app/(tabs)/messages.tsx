@@ -5,8 +5,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -133,8 +134,8 @@ export default function MessagesScreen() {
   return <SafeAreaView style={s.page} edges={['top', 'left', 'right']}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
       <View style={s.header}>
-        <View style={s.avatar}><Ionicons name="person" size={21} color={colors.primaryDark} /></View>
-        <View style={{ flex: 1 }}><Text style={s.title}>{vinculo?.nutricionista.nome || 'Nutricionista'}</Text><Text style={s.subtitle}>Seu nutricionista vinculado</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${vinculo?.nutricionista.nome || 'nutricionista'}`} onPress={() => { if (vinculo?.nutricionista.id) router.push({ pathname: '/nutri/professional', params: { id: String(vinculo.nutricionista.id) } }); }} style={s.avatar}>{vinculo?.nutricionista.foto ? <Image source={{ uri: vinculo.nutricionista.foto }} style={s.avatarImage} /> : <Ionicons name="person" size={21} color={colors.primaryDark} />}</Pressable>
+        <Pressable style={{ flex: 1 }} accessibilityRole="button" onPress={() => { if (vinculo?.nutricionista.id) router.push({ pathname: '/nutri/professional', params: { id: String(vinculo.nutricionista.id) } }); }}><Text style={s.title}>{vinculo?.nutricionista.nome || 'Nutricionista'}</Text><Text style={s.subtitle}>Ver perfil do nutricionista</Text></Pressable>
         <View style={s.onlineDot} /><Text style={s.secure}>Privado</Text>
       </View>
       {loading ? <View style={s.loader}><ActivityIndicator color={colors.primary} /><Text style={s.subtitle}>Carregando conversa…</Text></View> :
@@ -156,7 +157,7 @@ export default function MessagesScreen() {
 const styles = (c: ReturnType<typeof usePremiumTheme>['colors']) => StyleSheet.create({
   page: { flex: 1, backgroundColor: c.bg },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 13, borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth, gap: 10, backgroundColor: c.surface },
-  avatar: { height: 42, width: 42, borderRadius: 21, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  avatar: { height: 42, width: 42, borderRadius: 21, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { height: 42, width: 42, borderRadius: 21 },
   title: { color: c.text, fontSize: 17, fontWeight: '700' }, subtitle: { color: c.textMuted, fontSize: 12, marginTop: 3 },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.success }, secure: { color: c.textMuted, fontSize: 11 },
   list: { paddingHorizontal: 14, paddingVertical: 18, flexGrow: 1, justifyContent: 'flex-end' },

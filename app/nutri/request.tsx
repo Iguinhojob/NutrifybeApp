@@ -1,10 +1,13 @@
 import { usePremiumTheme } from '@/context/theme';
+import { useAuth } from '@/context/auth';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 export default function RequestScreen() {
   const { colors } = usePremiumTheme();
+  const { user } = useAuth();
+  if (user?.nutricionistaId) return <Redirect href="/(tabs)/plan" />;
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
       <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, textAlign: 'center' }}>Vincular nutricionista</Text>

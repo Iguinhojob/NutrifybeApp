@@ -59,6 +59,7 @@ type AuthContextType = {
   updateUser: (data: Partial<User>) => Promise<void>;
   refreshUser: () => Promise<void>;
   solicitarVinculo: (nutricionistaId: number) => Promise<{ success: boolean; error?: string }>;
+  encerrarVinculo: (nota: number, comentario?: string, denuncia?: string) => Promise<{ success: boolean; error?: string }>;
   marcarNotificacaoLida: (id: string) => void;
   clearError: () => void;
 };
@@ -259,6 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // atualiza o paciente com nutricionistaId e status "pending"
   const solicitarVinculo = async (nutricionistaId: number): Promise<{ success: boolean; error?: string }> => {
     if (!user) return { success: false, error: 'Usuário não autenticado.' };
+    if (user.nutricionistaId) return { success: false, error: 'Encerre seu vínculo atual antes de solicitar outro nutricionista.' };
     if (!Number.isSafeInteger(nutricionistaId) || nutricionistaId <= 0) {
       return { success: false, error: 'Informe um ID de nutricionista válido.' };
     }
@@ -347,6 +349,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updated);
   };
 
+  const encerrarVinculo = async (nota: number, comentario?: string, denuncia?: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user || !vinculo || vinculo.status !== 'ativo') return { success: false, error: 'Não há vínculo ativo para encerrar.' };
+    setLoading(true);
+    try {
+      const result = await PacientesAPI.endNutritionistLink(nota, comentario, denuncia);
+      setUser(pacienteToUser(result.paciente));
+      setVinculo(null);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Não foi possível encerrar o vínculo agora.' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const refreshUser = useCallback(async () => {
     if (!user || DEMO_MODE) return;
     const paciente = await PacientesAPI.getMe();
@@ -373,7 +390,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       vinculo, notificacoes,
       loading, error,
       login, register, logout, updateUser, refreshUser,
-      solicitarVinculo, marcarNotificacaoLida, clearError,
+      solicitarVinculo, encerrarVinculo, marcarNotificacaoLida, clearError,
     }}>
       {children}
     </AuthContext.Provider>

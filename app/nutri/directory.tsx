@@ -1,17 +1,21 @@
 import { usePremiumTheme } from '@/context/theme';
+import { useAuth } from '@/context/auth';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { DEMO_MODE, listAvailableNutritionists, type NutritionistProfile } from '@/services/demo';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function NutritionistDirectoryScreen() {
+  const { user } = useAuth();
   const { colors: C } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const [items, setItems] = useState<NutritionistProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+
+  if (user?.nutricionistaId) return <Redirect href="/(tabs)/plan" />;
 
   useEffect(() => {
     let active = true;
@@ -37,7 +41,7 @@ export default function NutritionistDirectoryScreen() {
       {loading ? <View style={styles.loading}><ActivityIndicator color={C.primary} /><Text style={{ color: C.textMuted }}>Buscando profissionais…</Text></View> : filtered.length === 0 ? <View style={styles.loading}><Ionicons name="people-outline" size={42} color={C.textDim} /><Text style={{ color: C.textMuted }}>Nenhum profissional encontrado.</Text></View> : filtered.map(item => (
         <TouchableOpacity key={item.id} activeOpacity={.85} onPress={() => router.push({ pathname: '/nutri/professional', params: { id: String(item.id) } })} style={[styles.card, { backgroundColor: C.surface, borderColor: C.border }]}>
           <View style={styles.cardTop}>
-            <View style={[styles.avatar, { backgroundColor: C.primary }]}><Text style={styles.initial}>{item.nome.charAt(0)}</Text></View>
+            <View style={[styles.avatar, { backgroundColor: C.primary }]}>{item.foto ? <Image source={{ uri: item.foto }} style={styles.avatarImage} /> : <Text style={styles.initial}>{item.nome.charAt(0)}</Text>}</View>
             <View style={{ flex: 1 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Text style={[styles.name, { color: C.text }]}>{item.nome}</Text><Ionicons name="checkmark-circle" size={15} color={C.primary} /></View><Text style={[styles.specialty, { color: C.primary }]}>{item.especialidade || 'Nutricionista'}</Text><Text style={[styles.crn, { color: C.textMuted }]}>CRN {item.crn}</Text></View>
             {item.rating ? <View style={[styles.rating, { backgroundColor: C.warningSoft }]}><Ionicons name="star" size={13} color={C.warning} /><Text style={{ color: C.text, fontWeight: '900', fontSize: 12 }}>{item.rating.toFixed(1)}</Text></View> : null}
           </View>
@@ -52,5 +56,5 @@ export default function NutritionistDirectoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, gap: 14 }, back: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 8, paddingRight: 14 }, title: { fontSize: 27, fontWeight: '900', letterSpacing: -.7 }, subtitle: { fontSize: 14, lineHeight: 20, marginTop: -7 }, notice: { borderRadius: 14, padding: 12, flexDirection: 'row', gap: 8, alignItems: 'flex-start' }, search: { borderWidth: 1, borderRadius: 15, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, loading: { minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 10 }, card: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 12 }, cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, avatar: { width: 52, height: 52, borderRadius: 17, alignItems: 'center', justifyContent: 'center' }, initial: { color: '#fff', fontSize: 21, fontWeight: '900' }, name: { fontSize: 16, fontWeight: '900' }, specialty: { fontSize: 12, fontWeight: '800', marginTop: 2 }, crn: { fontSize: 10, marginTop: 2 }, rating: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', gap: 4 }, description: { fontSize: 12, lineHeight: 18 }, tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, tag: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5 }, footer: { borderTopWidth: 1, paddingTop: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  scroll: { padding: 20, gap: 14 }, back: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 8, paddingRight: 14 }, title: { fontSize: 27, fontWeight: '900', letterSpacing: -.7 }, subtitle: { fontSize: 14, lineHeight: 20, marginTop: -7 }, notice: { borderRadius: 14, padding: 12, flexDirection: 'row', gap: 8, alignItems: 'flex-start' }, search: { borderWidth: 1, borderRadius: 15, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, loading: { minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 10 }, card: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 12 }, cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, avatar: { width: 52, height: 52, borderRadius: 17, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: 52, height: 52 }, initial: { color: '#fff', fontSize: 21, fontWeight: '900' }, name: { fontSize: 16, fontWeight: '900' }, specialty: { fontSize: 12, fontWeight: '800', marginTop: 2 }, crn: { fontSize: 10, marginTop: 2 }, rating: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', gap: 4 }, description: { fontSize: 12, lineHeight: 18 }, tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, tag: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5 }, footer: { borderTopWidth: 1, paddingTop: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

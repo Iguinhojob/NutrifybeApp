@@ -1,21 +1,17 @@
-# Prévia do cadastro e acesso
+# Cadastro e acesso do app
 
-Esta etapa foi implementada como **frontend de demonstração**, a pedido do responsável pelo projeto. `services/demo.ts` mantém `DEMO_MODE = true`. Não desative esse modo antes de integrar e revisar a autenticação no servidor.
+O app esta configurado para usar o backend por `EXPO_PUBLIC_API_URL`. O modo demo e opcional e deve permanecer desligado nas builds conectadas (`EXPO_PUBLIC_DEMO_MODE=false`). O arquivo `.env.example` documenta esses valores; ajuste a URL para um endereco alcancavel pelo dispositivo antes de iniciar ou publicar.
 
-- Login: botão **Explorar demonstração sem cadastro**. Não autentica credenciais reais.
-- Cadastro: nove etapas com objetivo e pergunta adaptativa, sexo, aniversário, movimento diário, medidas, preferências, origem e credenciais. Campos anteriores são preservados ao voltar.
-- Nutricionista: selecione **Meu nutri está aqui**, digite **1234**, confira Ana Souza e confirme. O vínculo é aplicado ao concluir a conta de demonstração. IDs diferentes exibem erro. **Não tenho o código agora** segue sem vínculo; a conexão posterior está disponível no perfil e no plano.
-- Recuperação: percurso de e-mail, prévia do link, nova senha e confirmação. Não envia e-mail, não cria token e não altera credenciais.
-- O contexto de onboarding e os perfis de demonstração ficam apenas na memória da sessão. Recarregar o app descarta os dados. Senhas ficam no estado da tela, não são incluídas nos perfis, no armazenamento persistente ou nos parâmetros de navegação.
+## Fluxos conectados
 
-## Validações de interface
+- Login e cadastro usam `/api/auth/login` e `/api/auth/register`.
+- Consulta de nutricionista e solicitacao de vinculo usam a API autenticada.
+- Diario, agua e medidas usam os endpoints do backend; o armazenamento local serve como cache.
 
-Datas reais (incluindo anos bissextos), e-mail, números decimais com vírgula ou ponto, medidas e coerência do peso desejado. A senha aceita frases, espaços e símbolos, de 15 a 128 caracteres, com bloqueio básico de sequências e repetições; confirmação obrigatória. Referência para comprimento e frases: [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html). A checagem local não é um verificador completo de senhas vazadas.
+## Recuperacao de senha
 
-Executar `node scripts/check-onboarding.cjs`, `npx tsc --noEmit` e lint nos arquivos alterados. Os fluxos visuais também devem ser conferidos no navegador e, antes da publicação, em builds nativos.
+A tela ainda nao esta integrada a uma API de recuperacao de senha para pacientes. O modo conectado informa que o recurso esta indisponivel; nao apresenta a simulacao local como uma alteracao real de credenciais. Para concluir esse fluxo, o backend precisa oferecer solicitacao e confirmacao de recuperacao com token e envio de e-mail.
 
-## Integração posterior
+## Modo de demonstracao
 
-Revalidar no servidor todos os campos e a senha; definir autorização, sessão, política de menores, consentimento e persistência do perfil. Substituir a autenticação legada que consulta a lista de pacientes e compara senha no cliente. Adicionar hash de senha, respostas sem credenciais, controle de tentativas e recuperação para **pacientes** com tokens únicos/expiráveis e envio real de e-mail. O controlador público do site consultado nesta etapa suporta recuperação de nutricionistas/administradores, não confirma suporte a pacientes.
-
-O cadastro com código deve validar o profissional e criar paciente/vínculo de forma atômica no backend, respeitando a regra de aprovação do nutricionista. Na prévia, o vínculo ativo é somente uma simulação. Não foram alterados ou publicados serviços no Render.
+Quando `EXPO_PUBLIC_DEMO_MODE=true`, partes de autenticacao, vinculo e diario passam a usar dados locais/de exemplo. Nao use essa opcao em distribuicoes conectadas. O valor atual neste checkout e `false`.

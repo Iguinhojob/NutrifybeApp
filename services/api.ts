@@ -101,6 +101,8 @@ export type Nutricionista = {
   id: number; nome: string; email: string; crn: string; status: string; ativo: number;
   telefone?: string; especialidade?: string; descricao?: string | null; foto?: string | null; dataCriacao?: string;
 };
+export type NutritionistReview = { nota: number; comentario?: string | null; criadoEm: string };
+export type NutritionistReviewsResponse = { media: number | null; total: number; avaliacoes: NutritionistReview[] };
 
 export type SolicitacaoPendente = {
   id: number; nome: string; email: string; idade: number; peso: number; altura: number;
@@ -133,6 +135,10 @@ export const PacientesAPI = {
   linkNutritionist: (nutricionistaId: number) => request<Paciente>('/api/auth/me/vinculo', {
     method: 'POST', body: JSON.stringify({ nutricionistaId }),
   }),
+  endNutritionistLink: (nota: number, comentario?: string, denuncia?: string) =>
+    request<{ success: boolean; paciente: Paciente }>('/api/auth/me/vinculo/encerrar', {
+      method: 'POST', body: JSON.stringify({ nota, comentario, denuncia }),
+    }),
   updateCalendario: (id: number, calendario: object) => request<Paciente>(`/api/pacientes/${id}`, {
     method: 'PUT', body: JSON.stringify({ calendario: JSON.stringify(calendario) }),
   }),
@@ -141,6 +147,7 @@ export const PacientesAPI = {
 export const NutricionistasAPI = {
   getAll: () => request<Nutricionista[]>('/api/nutricionistas'),
   getById: (id: number) => request<Nutricionista>(`/api/nutricionistas/${id}`),
+  getReviews: (id: number) => request<NutritionistReviewsResponse>(`/api/nutricionistas/${id}/avaliacoes`),
   findByCrn: async (crn: string): Promise<Nutricionista | null> => {
     const all = await request<Nutricionista[]>('/api/nutricionistas');
     return all.find(n => n.crn.toUpperCase() === crn.trim().toUpperCase()) ?? null;
