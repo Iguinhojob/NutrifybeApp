@@ -1,0 +1,27 @@
+// Run with: node scripts/check-calorie-evolution.cjs
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+process.env.TZ = 'America/Sao_Paulo';
+const source = ts.transpileModule(fs.readFileSync('utils/calorieEvolution.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+const context = { exports: {} };
+vm.runInNewContext(source, context);
+const { calorieEvolution } = context.exports;
+const plan = [{ indice: 0, nome: 'Café da manhã', horario: '08:00' }, { indice: 1, nome: 'Almoço', horario: '12:00' }, { indice: 2, nome: 'Lanche', horario: '16:00' }, { indice: 3, nome: 'Jantar', horario: '19:00' }];
+const meal = (id, name, calories, createdAt = '2026-10-09') => ({id, name, calories, createdAt});
+const empty = calorieEvolution([], 2000, plan);
+assert.equal(empty.total, 0); assert.equal(empty.points.length, 0); assert.equal(empty.estimate, 500);
+const day = calorieEvolution([meal('2', 'Almoço', 740, '2026-10-09T15:00:00Z'), meal('1', 'Café da manhã', 500, '2026-10-09T11:00:00Z')], 2000, plan);
+assert.equal(day.points[0].name, 'Café da manhã'); assert.equal(day.points[1].accumulated, 1240); assert.equal(day.estimate, 380); assert.equal(day.band, 'progress');
+assert.equal(calorieEvolution([meal('1', 'Almoço', 1800)], 2000, plan).band, 'near');
+assert.equal(calorieEvolution([meal('1', 'Almoço', 2000)], 2000, plan).message, 'Meta atingida!');
+assert.equal(calorieEvolution([meal('1', 'Almoço', 2150)], 2000, plan).band, 'above');
+assert.equal(calorieEvolution([meal('1', 'Almoço', 2150)], 2000, plan).estimate, null);
+assert.equal(calorieEvolution([meal('1', 'Almoço', 100), meal('2', 'Almoço', 100)], 2000, plan).remaining, 3);
+assert.equal(calorieEvolution([meal('1', 'Almoço', 300)], null, plan).estimate, null);
+const legacy = calorieEvolution([meal('1', 'Jantar', 500), meal('2', 'Café da manhã', 400)], 2000, plan);
+assert.equal(legacy.points[0].name, 'Café da manhã'); assert.equal(legacy.points[0].time.estimated, true);
+const removed = calorieEvolution(day.points.slice(0, 1), 2000, plan);
+assert.equal(removed.total, 500); assert.equal(removed.remaining, 3);
+console.log('Evolução: vazio, ordem, acumulado, faixas, remoção, refeições restantes e horários antigos OK.');

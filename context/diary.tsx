@@ -2,11 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { useAuth } from '@/context/auth';
 import { DEMO_MODE } from '@/services/demo';
-import { DiaryAPI, localDateString } from '@/services/api';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { DiaryAPI, localDateString, type CalorieTarget } from '@/services/api';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 export type MealFoodItem = {
   foodId: string;
+  alimentoId?: number;
+  gramas?: number;
   name: string;
   quantity: number;
   portionLabel: string;
@@ -15,10 +17,12 @@ export type MealFoodItem = {
   carbs: number;
   protein: number;
   fat: number;
+  fiber?: number;
   caloriesPer100g?: number;
   carbsPer100g?: number;
   proteinPer100g?: number;
   fatPer100g?: number;
+  fiberPer100g?: number;
   dataSource?: string;
   dataType?: string;
   brandName?: string;
@@ -32,8 +36,10 @@ export type MealRecord = {
   carbs?: number;
   protein?: number;
   fat?: number;
+  fiber?: number;
   items?: MealFoodItem[];
   createdAt: string;
+  entryDate?: string;
   source?: string;
   referenceId?: string;
 };
@@ -42,6 +48,12 @@ export type MeasurementRecord = { id: string; weight?: string; waist?: string; h
 type DiaryState = { meals: MealRecord[]; water: WaterRecord[]; measurements: MeasurementRecord[] };
 
 const EMPTY: DiaryState = { meals: [], water: [], measurements: [] };
+const roundNutrition = (value: unknown, digits = 1) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  const factor = 10 ** digits;
+  return Math.round((number + Number.EPSILON) * factor) / factor;
+};
 const normalizeState = (value: unknown): DiaryState => {
   if (!value || typeof value !== 'object') return EMPTY;
   const candidate = value as Partial<DiaryState>;
@@ -50,16 +62,19 @@ const normalizeState = (value: unknown): DiaryState => {
       .filter(item => item && Number.isFinite(Number(item.calories)))
       .map(item => ({
         ...item,
-        calories: Number(item.calories),
-        ...(Number.isFinite(Number(item.carbs)) ? { carbs: Number(item.carbs) } : {}),
-        ...(Number.isFinite(Number(item.protein)) ? { protein: Number(item.protein) } : {}),
-        ...(Number.isFinite(Number(item.fat)) ? { fat: Number(item.fat) } : {}),
+        calories: roundNutrition(item.calories, 0),
+        ...(Number.isFinite(Number(item.carbs)) ? { carbs: roundNutrition(item.carbs) } : {}),
+        ...(Number.isFinite(Number(item.protein)) ? { protein: roundNutrition(item.protein) } : {}),
+        ...(Number.isFinite(Number(item.fat)) ? { fat: roundNutrition(item.fat) } : {}),
+        ...(Number.isFinite(Number(item.fiber)) ? { fiber: roundNutrition(item.fiber) } : {}),
       })) : [],
     water: Array.isArray(candidate.water) ? candidate.water.filter(item => item && Number.isFinite(Number(item.amountMl)) && Number(item.amountMl) > 0).map(item => ({ ...item, amountMl: Number(item.amountMl) })) : [],
     measurements: Array.isArray(candidate.measurements) ? candidate.measurements : [],
   };
 };
 const DiaryContext = createContext<{
+  calorieTarget: CalorieTarget | null; goalLoading: boolean; goalError: string;
+  refreshCalorieTarget: () => Promise<void>; saveCalorieTarget: (calories: number) => Promise<void>;
   ready: boolean; mealsToday: MealRecord[]; historyMeals: MealRecord[]; allMeals: MealRecord[]; waterToday: WaterRecord[]; measurements: MeasurementRecord[];
   caloriesToday: number; waterTodayMl: number;
   addMeal: (data: Omit<MealRecord, 'id' | 'createdAt'>) => Promise<void>;
@@ -72,7 +87,7 @@ const DiaryContext = createContext<{
 
 const dateKey = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : localDateString(new Date(date));
 const todayKey = () => localDateString();
-const fromApiMeal = (meal: Awaited<ReturnType<typeof DiaryAPI.meals>>[number]): MealRecord => ({ id: String(meal.id), name: meal.mealType, description: meal.description, calories: meal.calories, carbs: meal.carbs, protein: meal.protein, fat: meal.fat, items: meal.items as MealFoodItem[], createdAt: meal.createdAt, source: 'manual', referenceId: meal.referenceId });
+const fromApiMeal = (meal: Awaited<ReturnType<typeof DiaryAPI.meals>>[number]): MealRecord => ({ id: String(meal.id), name: meal.mealType, description: meal.description, calories: meal.calories, carbs: meal.carbs, protein: meal.protein, fat: meal.fat, fiber: meal.fiber, items: meal.items as MealFoodItem[], createdAt: meal.createdAt, entryDate: dateKey(meal.entryDate || meal.createdAt), source: meal.source || 'manual', referenceId: meal.referenceId });
 const fromApiWater = (record: Awaited<ReturnType<typeof DiaryAPI.water>>[number]): WaterRecord => ({ id: String(record.id), amountMl: record.amountMl, createdAt: record.createdAt });
 const fromApiMeasurement = (record: Awaited<ReturnType<typeof DiaryAPI.measurements>>[number]): MeasurementRecord => ({ id: String(record.id), weight: record.weight, waist: record.waist, hip: record.hip, arm: record.arm, bodyFat: record.bodyFat, createdAt: record.createdAt });
 
@@ -82,6 +97,34 @@ export function DiaryProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [currentDayKey, setCurrentDayKey] = useState(todayKey);
   const storageKey = user ? `nutrifybe:diary:${user.id}` : null;
+  const [calorieTarget, setCalorieTarget] = useState<CalorieTarget | null>(null);
+  const [goalLoading, setGoalLoading] = useState(false);
+  const [goalError, setGoalError] = useState('');
+  const goalRequest = useRef(0);
+  const refreshCalorieTarget = useCallback(async () => {
+    if (!user?.id) return;
+    const request = ++goalRequest.current;
+    setGoalLoading(true);
+    try {
+      const target = await DiaryAPI.calorieTarget();
+      if (request === goalRequest.current) { setCalorieTarget(target); setGoalError(''); }
+    } catch {
+      if (request === goalRequest.current) setGoalError('Não foi possível carregar a meta. Toque para tentar novamente.');
+    } finally { if (request === goalRequest.current) setGoalLoading(false); }
+  }, [user?.id]);
+  useEffect(() => {
+    setCalorieTarget(null);
+    setGoalError('');
+    void refreshCalorieTarget();
+    return () => { goalRequest.current++; };
+  }, [refreshCalorieTarget, user?.prescricaoSemanal]);
+  const saveCalorieTarget = useCallback(async (calories: number) => {
+    const request = ++goalRequest.current;
+    try {
+      const target = await DiaryAPI.saveCalorieTarget(calories);
+      if (request === goalRequest.current) { setCalorieTarget(target); setGoalError(''); }
+    } finally { if (request === goalRequest.current) setGoalLoading(false); }
+  }, []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -121,7 +164,7 @@ export function DiaryProvider({ children }: { children: ReactNode }) {
         const oldMeals = cached.meals.filter(record => !/^\d+$/.test(record.id));
         const oldWater = cached.water.filter(record => !/^\d+$/.test(record.id));
         const oldMeasurements = cached.measurements.filter(record => !/^\d+$/.test(record.id));
-        if (oldMeals.length) meals = [...meals, ...await Promise.all(oldMeals.map(meal => DiaryAPI.addMeal({ mealType: meal.name, description: meal.description, calories: meal.calories, carbs: meal.carbs, protein: meal.protein, fat: meal.fat, items: meal.items, source: meal.source, referenceId: `legacy:${meal.id}`, createdAt: meal.createdAt })))];
+        if (oldMeals.length) meals = [...meals, ...await Promise.all(oldMeals.map(meal => DiaryAPI.addMeal({ mealType: meal.name, description: meal.description, calories: meal.calories, carbs: meal.carbs, protein: meal.protein, fat: meal.fat, fiber: meal.fiber, items: meal.items, source: meal.source, referenceId: `legacy:${meal.id}`, createdAt: meal.createdAt })))];
         if (oldWater.length) water = [...water, ...await Promise.all(oldWater.map(record => DiaryAPI.addWater(record.amountMl, record.createdAt, `legacy:${record.id}`)))];
         if (oldMeasurements.length) measurements = [...measurements, ...await Promise.all(oldMeasurements.map(record => DiaryAPI.addMeasurement({ weight: record.weight, waist: record.waist, hip: record.hip, arm: record.arm, bodyFat: record.bodyFat, createdAt: record.createdAt, referenceId: `legacy:${record.id}` })))];
         if (!active) return;
@@ -146,7 +189,7 @@ export function DiaryProvider({ children }: { children: ReactNode }) {
   const addMeal = async (data: Omit<MealRecord, 'id' | 'createdAt'>) => {
     const createdAt = new Date().toISOString();
     const record = !DEMO_MODE && user
-      ? fromApiMeal(await DiaryAPI.addMeal({ mealType: data.name, description: data.description, calories: data.calories, carbs: data.carbs, protein: data.protein, fat: data.fat, items: data.items, source: data.source, referenceId: data.referenceId, createdAt }))
+      ? fromApiMeal(await DiaryAPI.addMeal({ mealType: data.name, description: data.description, calories: data.calories, carbs: data.carbs, protein: data.protein, fat: data.fat, fiber: data.fiber, items: data.items, source: data.source, referenceId: data.referenceId, createdAt }))
       : { ...data, id: `${Date.now()}-${Math.random()}`, createdAt };
     await save({ ...state, meals: [...state.meals, record] });
   };
@@ -154,7 +197,7 @@ export function DiaryProvider({ children }: { children: ReactNode }) {
     const existing = state.meals.find(record => record.id === id);
     if (!existing) throw new Error('Refeicao nao encontrada');
     const record = !DEMO_MODE && user && /^\d+$/.test(id)
-      ? fromApiMeal(await DiaryAPI.updateMeal(Number(id), { mealType: data.name, description: data.description, calories: data.calories, carbs: data.carbs, protein: data.protein, fat: data.fat, items: data.items, source: existing.source, referenceId: existing.referenceId }))
+      ? fromApiMeal(await DiaryAPI.updateMeal(Number(id), { mealType: data.name, description: data.description, calories: data.calories, carbs: data.carbs, protein: data.protein, fat: data.fat, fiber: data.fiber, items: data.items, source: existing.source, referenceId: existing.referenceId }))
       : { ...existing, ...data, id: existing.id, createdAt: existing.createdAt };
     await save({ ...state, meals: state.meals.map(item => item.id === id ? record : item) });
   };
@@ -182,11 +225,11 @@ export function DiaryProvider({ children }: { children: ReactNode }) {
     await save({ ...state, measurements: [...state.measurements, record] });
   };
   const value = useMemo(() => {
-    const mealsToday = state.meals.filter(item => dateKey(item.createdAt) === currentDayKey);
-    const historyMeals = state.meals.filter(item => dateKey(item.createdAt) < currentDayKey);
+    const mealsToday = state.meals.filter(item => (item.entryDate || dateKey(item.createdAt)) === currentDayKey);
+    const historyMeals = state.meals.filter(item => (item.entryDate || dateKey(item.createdAt)) < currentDayKey);
     const waterToday = state.water.filter(item => Number.isFinite(item.amountMl) && item.amountMl > 0 && dateKey(item.createdAt) === currentDayKey);
-    return { ready, mealsToday, historyMeals, allMeals: state.meals, waterToday, measurements: state.measurements, caloriesToday: mealsToday.reduce((sum, item) => sum + item.calories, 0), waterTodayMl: waterToday.reduce((sum, item) => sum + item.amountMl, 0), addMeal, updateMeal, removeMeal, addWater, removeWater, addMeasurement };
-  }, [ready, state, currentDayKey]);
+    return { calorieTarget, goalLoading, goalError, refreshCalorieTarget, saveCalorieTarget, ready, mealsToday, historyMeals, allMeals: state.meals, waterToday, measurements: state.measurements, caloriesToday: mealsToday.reduce((sum, item) => sum + item.calories, 0), waterTodayMl: waterToday.reduce((sum, item) => sum + item.amountMl, 0), addMeal, updateMeal, removeMeal, addWater, removeWater, addMeasurement };
+  }, [ready, state, currentDayKey, calorieTarget, goalLoading, goalError, refreshCalorieTarget, saveCalorieTarget]);
   return <DiaryContext.Provider value={value}>{children}</DiaryContext.Provider>;
 }
 

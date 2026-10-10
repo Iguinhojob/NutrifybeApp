@@ -1,8 +1,11 @@
-const BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/+$/, '');
-let accessToken: string | null = null;
+import { formatFoodName, formatFoodText } from '../utils/foodNames';
 
-export function setAccessToken(token: string | null) { accessToken = token; }
-export function getAccessToken() { return accessToken; }
+const BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/+$/, '');
+// Keep the login token when Expo reloads this module during development.
+const apiSession = globalThis as typeof globalThis & { __nutrifybeAccessToken?: string | null };
+
+export function setAccessToken(token: string | null) { apiSession.__nutrifybeAccessToken = token; }
+export function getAccessToken() { return apiSession.__nutrifybeAccessToken ?? null; }
 export function localDateString(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -18,22 +21,38 @@ export function recentLocalDates(count: number) {
 const normalizeDecimals = (values: Record<string, unknown>) => Object.fromEntries(
   Object.entries(values).map(([key, value]) => [key, typeof value === 'string' && ['weight', 'height', 'targetWeight', 'waterGoal'].includes(key) ? value.replace(',', '.') : value]),
 );
+const rounded = (value: unknown, digits = 1) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  const factor = 10 ** digits;
+  return Math.round((number + Number.EPSILON) * factor) / factor;
+};
 const parseItems = (value: unknown) => {
   if (Array.isArray(value)) return value;
   if (typeof value !== 'string' || !value) return [];
   try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
 };
+const normalizeMealDate = (value: unknown) => {
+  if (typeof value !== 'string') return '';
+  // The API stores date-only diary entries at 00:00 UTC. Keep their calendar
+  // date as entered instead of shifting them to the previous day in UTC-03.
+  const utcMidnight = value.match(/^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.0+)?Z$/);
+  return utcMidnight ? utcMidnight[1] : value;
+};
+const mealEntryDate = (data: Partial<MealEntry>) => data.entryDate || (data.createdAt && /^\d{4}-\d{2}-\d{2}$/.test(data.createdAt)
+  ? data.createdAt : localDateString(data.createdAt ? new Date(data.createdAt) : new Date()));
 const normalizeMeal = (value: any): MealEntry => ({
   id: value.id,
   mealType: value.mealType ?? value.nome ?? 'Refeição',
-  description: value.description ?? value.descricao ?? '',
-  calories: Number(value.calories ?? value.calorias ?? 0),
-  entryDate: value.entryDate ?? value.criadoEm ?? '',
-  createdAt: value.createdAt ?? value.criadoEm ?? '',
-  carbs: value.carbs == null && value.carboidratos == null ? undefined : Number(value.carbs ?? value.carboidratos),
-  protein: value.protein == null && value.proteinas == null ? undefined : Number(value.protein ?? value.proteinas),
-  fat: value.fat == null && value.gorduras == null ? undefined : Number(value.fat ?? value.gorduras),
-  items: parseItems(value.items ?? value.itens),
+  description: formatFoodText(value.description ?? value.descricao ?? ''),
+  calories: rounded(value.calories ?? value.calorias ?? 0, 0),
+  entryDate: normalizeMealDate(value.entryDate ?? value.criadoEm),
+  createdAt: normalizeMealDate(value.createdAt ?? value.criadoEm),
+  carbs: value.carbs == null && value.carboidratos == null ? undefined : rounded(value.carbs ?? value.carboidratos),
+  protein: value.protein == null && value.proteinas == null ? undefined : rounded(value.protein ?? value.proteinas),
+  fat: value.fat == null && value.gorduras == null ? undefined : rounded(value.fat ?? value.gorduras),
+  fiber: value.fiber == null && value.fibras == null ? undefined : rounded(value.fiber ?? value.fibras),
+  items: parseItems(value.items ?? value.itens).map((item: any) => ({ ...item, name: formatFoodName(item.name ?? item.nome ?? '') })),
   source: value.source ?? value.origem,
   referenceId: value.referenceId ?? value.referenciaId,
 });
@@ -47,11 +66,17 @@ const normalizeWater = (value: any): WaterEntry => ({
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   if (!(typeof FormData !== 'undefined' && options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
+  const accessToken = getAccessToken();
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   const raw = await response.text();
   const data = raw ? (() => { try { return JSON.parse(raw); } catch { return { message: raw }; } })() : null;
-  if (!response.ok) throw new Error(data?.message || `Erro ${response.status}`);
+  if (!response.ok) {
+    if (response.status === 401 && (accessToken || path.startsWith('/api/diario'))) {
+      throw new Error('Sua sessão expirou. Entre novamente na sua conta.');
+    }
+    throw new Error(data?.message || `Não foi possível concluir a solicitação (erro ${response.status}).`);
+  }
   return data as T;
 }
 
@@ -91,8 +116,9 @@ export type RegisterPayload = {
 };
 
 export type AuthResponse = { token: string; paciente: Paciente };
-export type MealEntry = { id: number; mealType: string; description: string; calories: number; entryDate: string; createdAt: string; carbs?: number; protein?: number; fat?: number; items?: unknown[]; source?: string; referenceId?: string };
-export type FoodSearchResult = { foodId: string; description: string; dataType: string; brandName: string; caloriesPer100g: number; carbsPer100g?: number; proteinPer100g?: number; fatPer100g?: number; source: string };
+export type MealEntry = { id: number; mealType: string; description: string; calories: number; entryDate: string; createdAt: string; carbs?: number; protein?: number; fat?: number; fiber?: number; items?: unknown[]; source?: string; referenceId?: string };
+export type CalorieTarget = { calorias: number; origem: 'plano' | 'pessoal' | 'padrao'; editavel: boolean; refeicoes: { indice: number; nome: string; horario: string }[] };
+export type FoodSearchResult = { foodId: string; alimentoId: number; description: string; dataType: string; brandName: string; caloriesPer100g: number; carbsPer100g?: number; proteinPer100g?: number; fatPer100g?: number; fiberPer100g?: number; source: string };
 export type WaterEntry = { id: number; amountMl: number; entryDate: string; createdAt: string };
 export type MeasurementEntry = { id: number; weight?: string; waist?: string; hip?: string; arm?: string; bodyFat?: string; createdAt: string };
 const normalizeMeasurement = (value: any): MeasurementEntry => ({ id: value.id, weight: value.weight ?? value.peso, waist: value.waist ?? value.cintura, hip: value.hip ?? value.quadril, arm: value.arm ?? value.braco, bodyFat: value.bodyFat ?? value.gorduraCorporal, createdAt: value.createdAt ?? value.criadoEm ?? '' });
@@ -163,13 +189,15 @@ export const SolicitacoesAPI = {
 };
 
 export const DiaryAPI = {
-  searchFoods: (query: string) => request<FoodSearchResult[]>(`/api/alimentos/busca?query=${encodeURIComponent(query)}`),
+  calorieTarget: () => request<CalorieTarget>('/api/diario/meta'),
+  saveCalorieTarget: (calorias: number) => request<CalorieTarget>('/api/diario/meta', { method: 'PUT', body: JSON.stringify({ calorias }) }),
+  searchFoods: async (query: string) => (await request<FoodSearchResult[]>(`/api/alimentos?busca=${encodeURIComponent(query)}`)).map(food => ({ ...food, description: formatFoodName(food.description) })),
   meals: async (date?: string) => (await request<any[]>(`/api/diario/refeicoes${date ? `?date=${encodeURIComponent(date)}` : ''}`)).map(normalizeMeal),
   addMeal: async (data: Partial<MealEntry> & Pick<MealEntry, 'mealType' | 'description' | 'calories'>) => normalizeMeal(await request<any>('/api/diario/refeicoes', {
-    method: 'POST', body: JSON.stringify({ mealType: data.mealType, description: data.description, calories: data.calories, entryDate: data.entryDate || localDateString(), carbs: data.carbs, protein: data.protein, fat: data.fat, items: JSON.stringify(data.items ?? []) }),
+    method: 'POST', body: JSON.stringify({ mealType: data.mealType, description: data.description, calories: data.calories, entryDate: mealEntryDate(data), criadoEm: data.createdAt || new Date().toISOString(), origem: data.source, referenciaId: data.referenceId, carbs: data.carbs, protein: data.protein, fat: data.fat, fiber: data.fiber, items: JSON.stringify(data.items ?? []) }),
   })),
   updateMeal: async (id: number, data: Partial<MealEntry> & Pick<MealEntry, 'mealType' | 'description' | 'calories'>) => normalizeMeal(await request<any>(`/api/diario/refeicoes/${id}`, {
-    method: 'PUT', body: JSON.stringify({ mealType: data.mealType, description: data.description, calories: data.calories, entryDate: data.entryDate || localDateString(), carbs: data.carbs, protein: data.protein, fat: data.fat, items: JSON.stringify(data.items ?? []) }),
+    method: 'PUT', body: JSON.stringify({ mealType: data.mealType, description: data.description, calories: data.calories, entryDate: data.entryDate || localDateString(), carbs: data.carbs, protein: data.protein, fat: data.fat, fiber: data.fiber, items: JSON.stringify(data.items ?? []) }),
   })),
   deleteMeal: (id: number) => request<void>(`/api/diario/refeicoes/${id}`, { method: 'DELETE' }),
   water: async (date?: string) => (await request<any[]>(`/api/diario/agua${date ? `?date=${encodeURIComponent(date)}` : ''}`)).map(normalizeWater),
@@ -196,6 +224,7 @@ export const ChatAPI = {
   attachmentUrl: (messageId: number, pacienteId?: number) => `${BASE_URL}/api/chat/mensagens/${messageId}/arquivo${pacienteId ? `?pacienteId=${pacienteId}` : ''}`,
   fetchAttachment: async (messageId: number, pacienteId?: number) => {
     const headers = new Headers();
+    const accessToken = getAccessToken();
     if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
     const response = await fetch(`${BASE_URL}/api/chat/mensagens/${messageId}/arquivo${pacienteId ? `?pacienteId=${pacienteId}` : ''}`, { headers });
     if (!response.ok) throw new Error(`Não foi possível abrir o anexo (${response.status}).`);

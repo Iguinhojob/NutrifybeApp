@@ -1,6 +1,7 @@
 import { darkPremium, lightPremium } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useColorScheme } from 'react-native';
 
 type Colors = typeof lightPremium;
 
@@ -17,20 +18,20 @@ const ThemeContext = createContext<ThemeContextType>({
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(false);
+  const systemTheme = useColorScheme();
+  const [preference, setPreference] = useState<boolean | null>(null);
+  const isDark = preference ?? systemTheme === 'dark';
 
   useEffect(() => {
     AsyncStorage.getItem('darkMode').then(val => {
-      if (val === 'true') setIsDark(true);
-    });
+      if (val === 'true' || val === 'false') setPreference(val === 'true');
+    }).catch(() => {});
   }, []);
 
   const toggleTheme = () => {
-    setIsDark(prev => {
-      const next = !prev;
-      AsyncStorage.setItem('darkMode', String(next));
-      return next;
-    });
+    const next = !isDark;
+    setPreference(next);
+    void AsyncStorage.setItem('darkMode', String(next));
   };
 
   return (

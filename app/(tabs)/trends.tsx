@@ -1,9 +1,9 @@
-import { useAuth } from '@/context/auth';
+﻿import { useAuth } from '@/context/auth';
 import { useDiary } from '@/context/diary';
+import { EvolucaoCaloriasDiaria } from '@/components/EvolucaoCaloriasDiaria';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { usePremiumTheme } from '@/context/theme';
-import { calculateCalorieGoal, measurementError, suggestedWaterGoal } from '@/utils/onboarding';
-import { localDateString } from '@/services/api';
+import { measurementError, suggestedWaterGoal } from '@/utils/onboarding';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -13,10 +13,7 @@ import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 const GOALS = ['Perder peso', 'Manter peso', 'Ganhar massa', 'Melhorar saúde'];
 
 type ChartPoint = { value: number | null; date: Date; key?: string };
-type DailyCaloriePoint = ChartPoint & { key: string };
-
 function LineTrendChart({ allPoints, target, targetLabel, emptyText, C }: { allPoints: ChartPoint[]; target: number; targetLabel: string; emptyText: string; C: any }) {
-  if (target > 500 || allPoints.some(point => (point.value ?? 0) > 500) || emptyText.toLowerCase().includes('calorias')) return <DailyCalorieChart points={allPoints as DailyCaloriePoint[]} target={target} C={C} />;
   const points = allPoints.slice(-7).filter((point): point is ChartPoint & { value: number } => typeof point.value === 'number' && Number.isFinite(point.value));
   if (!points.length) return <View style={{ height: 170, alignItems: 'center', justifyContent: 'center', gap: 7 }}><Ionicons name="analytics-outline" size={32} color={C.textDim} /><Text style={{ color: C.textMuted }}>{emptyText}</Text></View>;
   const values = [...points.map(point => point.value), ...(Number.isFinite(target) ? [target] : [])];
@@ -34,39 +31,9 @@ function LineTrendChart({ allPoints, target, targetLabel, emptyText, C }: { allP
   </Svg><Text style={{ color: C.textDim, fontSize: 10, textAlign: 'center' }}>Últimos {points.length} {points.length === 1 ? 'registro' : 'registros'}</Text></View>;
 }
 
-function DailyCalorieChart({ points, target, C }: { points: DailyCaloriePoint[]; target: number; C: any }) {
-  const plotted = points.filter(point => point.value !== null);
-  if (!plotted.length) return <View style={{ height: 180, alignItems: 'center', justifyContent: 'center', gap: 7 }}><Ionicons name="analytics-outline" size={32} color={C.textDim} /><Text style={{ color: C.textMuted, textAlign: 'center' }}>Registre refeições em dias diferentes para ver sua evolução diária.</Text></View>;
-  const maxValue = Math.max(target > 0 ? target : 0, ...plotted.map(point => point.value || 0), 500);
-  const ceiling = Math.ceil(maxValue / 500) * 500;
-  const left = 42; const right = 348; const top = 18; const bottom = 158;
-  const x = (index: number) => left + (index / 6) * (right - left);
-  const y = (value: number) => bottom - Math.max(0, Math.min(value, ceiling)) / ceiling * (bottom - top);
-  const segments: string[] = [];
-  let currentSegment: string[] = [];
-  points.forEach((point, index) => {
-    if (point.value === null) {
-      if (currentSegment.length > 1) segments.push(currentSegment.join(' '));
-      currentSegment = [];
-      return;
-    }
-    currentSegment.push(`${x(index)},${y(point.value)}`);
-  });
-  if (currentSegment.length > 1) segments.push(currentSegment.join(' '));
-  return <View>
-    <Svg width="100%" height={205} viewBox="0 0 360 205">
-      {[0, ceiling / 2, ceiling].map(tick => <React.Fragment key={tick}><Line x1={left} x2={right} y1={y(tick)} y2={y(tick)} stroke={C.border} strokeWidth="1" /><SvgText x="36" y={y(tick) + 3} fill={C.textMuted} fontSize="9" textAnchor="end">{Math.round(tick)}</SvgText></React.Fragment>)}
-      {target > 0 && <><Line x1={left} x2={right} y1={y(target)} y2={y(target)} stroke={C.warning} strokeWidth="1.5" strokeDasharray="5 5" /><SvgText x={right - 2} y={Math.max(y(target) - 6, 10)} fill={C.warning} fontSize="9" textAnchor="end">Meta {Math.round(target)}</SvgText></>}
-      {segments.map((segment, index) => <Polyline key={index} points={segment} fill="none" stroke={C.primary} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />)}
-      {points.map((point, index) => point.value === null ? null : <React.Fragment key={point.key}><Circle cx={x(index)} cy={y(point.value)} r="4.5" fill={C.surface} stroke={C.primary} strokeWidth="2.5" /><SvgText x={x(index)} y={Math.max(y(point.value) - 8, 10)} fill={C.text} fontSize="8" fontWeight="700" textAnchor="middle">{Math.round(point.value)}</SvgText></React.Fragment>)}
-      {points.map((point, index) => <SvgText key={`day-${point.key}`} x={x(index)} y="179" fill={C.textMuted} fontSize="8" textAnchor="middle">{point.date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</SvgText>)}
-    </Svg>
-    <Text style={{ color: C.textDim, fontSize: 10, textAlign: 'center' }}>Cada ponto é um dia com refeições registradas; lacunas significam que não há registros.</Text>
-  </View>;
-}
 
 export default function TrendsScreen() {
-  const { user, updateUser } = useAuth(); const { measurements, allMeals, ready, addMeasurement } = useDiary();
+  const { user, updateUser } = useAuth(); const { measurements, ready, addMeasurement } = useDiary();
   const { colors: C } = usePremiumTheme(); const { topPad } = useAppLayout(); const params = useLocalSearchParams<{ edit?: string }>();
   const [editing, setEditing] = useState(false); const [form, setForm] = useState({ weight: '', height: '', targetWeight: '', waterGoal: '', goal: '' });
   const [chartMode, setChartMode] = useState<'calories' | 'weight'>('calories');
@@ -82,29 +49,30 @@ export default function TrendsScreen() {
       await updateUser(normalized);
       if (normalized.weight !== user?.weight) await addMeasurement({ weight: normalized.weight });
       closeEditor();
-      Alert.alert('Dados atualizados', 'As metas de calorias e hidratação foram atualizadas.');
+      Alert.alert('Dados atualizados', 'Os dados e a meta de hidratação foram atualizados.');
     } catch {
       Alert.alert('Erro ao salvar', 'Não foi possível atualizar seus dados no servidor. Tente novamente.');
     }
   };
   const weightRecords = measurements.filter(item => item.weight); const first = weightRecords[0]; const current = weightRecords.at(-1);
   const change = current && first && current !== first ? Number(current.weight!.replace(',', '.')) - Number(first.weight!.replace(',', '.')) : 0;
-  const calorieGoal = user ? calculateCalorieGoal(user) : 0;
   const waterGoal = user?.waterGoal || String(suggestedWaterGoal(user?.weight || '', user?.activityLevel));
-  const bmi = user?.weight && user?.height ? (Number(user.weight) / Math.pow(Number(user.height) / 100, 2)).toFixed(1) : '—';
   const weightPoints = weightRecords.map(record => ({ value: Number(record.weight!.replace(',', '.')), date: new Date(record.createdAt) }));
-  const caloriesByDay = allMeals.reduce<Record<string, number>>((acc, meal) => { const key = /^\d{4}-\d{2}-\d{2}$/.test(meal.createdAt) ? meal.createdAt : localDateString(new Date(meal.createdAt)); acc[key] = (acc[key] || 0) + meal.calories; return acc; }, {});
-  const caloriePoints: DailyCaloriePoint[] = Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() - (6 - index)); const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; return { key, date, value: Object.prototype.hasOwnProperty.call(caloriesByDay, key) ? caloriesByDay[key] : null }; });
   const card = { backgroundColor: C.surface, borderRadius: 20, padding: 18, marginBottom: 14, shadowColor: '#000', shadowOpacity: .05, shadowRadius: 8, elevation: 2 } as const;
   const field = (key: keyof typeof form, label: string, suffix: string) => <View style={{ marginBottom: 12 }}><Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>{label}</Text><View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.surface }}><TextInput value={form[key]} onChangeText={value => setForm(prev => ({ ...prev, [key]: value }))} keyboardType="decimal-pad" style={{ flex: 1, padding: 13, color: C.text, fontSize: 15 }} placeholder={label} placeholderTextColor={C.textDim} /><Text style={{ color: C.textMuted, marginRight: 13 }}>{suffix}</Text></View></View>;
 
   return <View style={{ flex: 1, backgroundColor: C.bg }}><ScrollView contentContainerStyle={{ padding: 20, paddingTop: topPad, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
     <Text style={{ fontSize: 26, fontWeight: '900', color: C.text }}>Evolução</Text><Text style={{ fontSize: 14, color: C.textMuted, marginTop: 4, marginBottom: 20 }}>Suas metas e seu progresso em um só lugar.</Text>
     <View style={card}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}><Text style={{ color: C.text, fontSize: 16, fontWeight: '800' }}>Resumo da meta</Text><TouchableOpacity onPress={openEditor}><Text style={{ color: C.primary, fontWeight: '800' }}>Editar</Text></TouchableOpacity></View>
-      <View style={{ flexDirection: 'row', gap: 9 }}>{[['Peso atual', user?.weight ? `${user.weight} kg` : '—'], ['Peso meta', user?.targetWeight ? `${user.targetWeight} kg` : '—'], ['Calorias', calorieGoal ? `${calorieGoal}` : '—']].map(([label, value]) => <View key={label} style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 13, padding: 11 }}><Text style={{ color: C.textMuted, fontSize: 9, fontWeight: '800' }}>{label.toUpperCase()}</Text><Text style={{ color: C.text, fontWeight: '900', fontSize: 15, marginTop: 4 }}>{value}</Text></View>)}</View>
-      <View style={{ marginTop: 12, gap: 9 }}>{[['Objetivo', user?.goal || '—'], ['Altura e IMC', `${user?.height || '—'} cm · IMC ${bmi}`], ['Meta de água', `${waterGoal} L por dia`]].map(([label, value]) => <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}><Text style={{ color: C.textMuted, fontSize: 13 }}>{label}</Text><Text style={{ color: C.text, fontWeight: '700', fontSize: 13, flex: 1, textAlign: 'right' }}>{value}</Text></View>)}</View>
+      <View style={{ flexDirection: 'row', gap: 9 }}>{[['Peso atual', user?.weight ? `${user.weight} kg` : '—'], ['Peso meta', user?.targetWeight ? `${user.targetWeight} kg` : '—']].map(([label, value]) => <View key={label} style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 13, padding: 11 }}><Text style={{ color: C.textMuted, fontSize: 9, fontWeight: '800' }}>{label.toUpperCase()}</Text><Text style={{ color: C.text, fontWeight: '900', fontSize: 15, marginTop: 4 }}>{value}</Text></View>)}</View>
+      <View style={{ marginTop: 12, gap: 9 }}>{[['Objetivo', user?.goal || '—'], ['Altura', `${user?.height || '—'} cm`], ['Meta de água', `${waterGoal} L por dia`]].map(([label, value]) => <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}><Text style={{ color: C.textMuted, fontSize: 13 }}>{label}</Text><Text style={{ color: C.text, fontWeight: '700', fontSize: 13, flex: 1, textAlign: 'right' }}>{value}</Text></View>)}</View>
     </View>
-    <View style={card}><Text style={{ color: C.text, fontSize: 16, fontWeight: '800' }}>Gráfico de evolução</Text><Text style={{ color: C.textMuted, fontSize: 12, marginTop: 3 }}>Alterne entre consumo calórico e peso registrado.</Text><View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 12, padding: 4, marginTop: 14, marginBottom: 7 }}>{([{ key: 'calories', label: 'Calorias' }, { key: 'weight', label: 'Peso' }] as const).map(item => <TouchableOpacity key={item.key} onPress={() => setChartMode(item.key)} style={{ flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center', backgroundColor: chartMode === item.key ? C.primary : 'transparent' }}><Text style={{ color: chartMode === item.key ? '#fff' : C.textMuted, fontWeight: '800', fontSize: 13 }}>{item.label}</Text></TouchableOpacity>)}</View>{ready ? chartMode === 'calories' ? <LineTrendChart allPoints={caloriePoints} target={calorieGoal} targetLabel="Meta" emptyText="Registre refeições para formar o gráfico de calorias." C={C} /> : <><LineTrendChart allPoints={weightPoints} target={Number((user?.targetWeight || '').replace(',', '.'))} targetLabel="Meta" emptyText="Registre seu peso para formar o gráfico." C={C} />{weightRecords.length > 1 && <Text style={{ color: change === 0 ? C.textMuted : change < 0 ? C.success : C.warning, textAlign: 'center', fontWeight: '800', marginTop: 4 }}>{change > 0 ? '+' : ''}{change.toFixed(1)} kg desde o primeiro registro</Text>}</> : <Text style={{ color: C.textMuted, paddingVertical: 30, textAlign: 'center' }}>Carregando gráfico…</Text>}</View>
-    <View style={card}><Text style={{ color: C.text, fontSize: 16, fontWeight: '800', marginBottom: 10 }}>Histórico de medidas</Text>{!ready ? <Text style={{ color: C.textMuted }}>Carregando registros…</Text> : measurements.length === 0 ? <View style={{ alignItems: 'center', paddingVertical: 22, gap: 7 }}><Ionicons name="stats-chart-outline" size={32} color={C.textDim} /><Text style={{ color: C.textMuted }}>Nenhuma medida registrada ainda.</Text></View> : measurements.slice().reverse().map((record, index) => <View key={record.id} style={{ paddingVertical: 12, ...(index < measurements.length - 1 ? { borderBottomWidth: 1, borderBottomColor: C.border } : {}) }}><Text style={{ color: C.textMuted, fontSize: 12 }}>{new Date(record.createdAt).toLocaleDateString('pt-BR')}</Text><Text style={{ color: C.text, fontWeight: '700', marginTop: 3 }}>{[record.weight && `Peso: ${record.weight} kg`, record.waist && `Cintura: ${record.waist} cm`, record.hip && `Quadril: ${record.hip} cm`, record.arm && `Braço: ${record.arm} cm`, record.bodyFat && `Gordura: ${record.bodyFat}%`].filter(Boolean).join(' · ')}</Text></View>)}</View>
+    <View style={{ marginBottom: 14 }}>
+      <View style={card}><Text style={{ color: C.text, fontSize: 16, fontWeight: '800' }}>Gráfico de evolução</Text><Text style={{ color: C.textMuted, fontSize: 12, marginTop: 3 }}>Acompanhe as calorias acumuladas no dia ou consulte seu peso.</Text><View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 12, padding: 4, marginTop: 14 }}>{([{ key: 'calories', label: 'Calorias do dia' }, { key: 'weight', label: 'Peso' }] as const).map(item => <TouchableOpacity key={item.key} onPress={() => setChartMode(item.key)} style={{ flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center', backgroundColor: chartMode === item.key ? C.primary : 'transparent' }}><Text style={{ color: chartMode === item.key ? '#fff' : C.textMuted, fontWeight: '800', fontSize: 13 }}>{item.label}</Text></TouchableOpacity>)}</View></View>
+      {!ready ? <View style={[card, { alignItems: 'center', paddingVertical: 30 }]}><Text style={{ color: C.textMuted }}>Carregando gráfico…</Text></View> : chartMode === 'calories' ? <EvolucaoCaloriasDiaria /> : <View style={card}><Text style={{ color: C.text, fontSize: 16, fontWeight: '800', marginBottom: 8 }}>Histórico de peso</Text><LineTrendChart allPoints={weightPoints} target={Number((user?.targetWeight || '').replace(',', '.'))} targetLabel="Meta" emptyText="Registre seu peso para formar o gráfico." C={C} />{weightRecords.length > 1 && <Text style={{ color: change === 0 ? C.textMuted : change < 0 ? C.success : C.warning, textAlign: 'center', fontWeight: '800', marginTop: 4 }}>{change > 0 ? '+' : ''}{change.toFixed(1)} kg desde o primeiro registro</Text>}</View>}
+    </View>    <View style={card}>
+      <Text style={{ color: C.text, fontSize: 16, fontWeight: '800', marginBottom: 10 }}>Histórico de medidas</Text>
+      {!ready ? <Text style={{ color: C.textMuted }}>Carregando registros…</Text> : measurements.length === 0 ? <View style={{ alignItems: 'center', paddingVertical: 22, gap: 7 }}><Ionicons name="stats-chart-outline" size={32} color={C.textDim} /><Text style={{ color: C.textMuted }}>Nenhuma medida registrada ainda.</Text></View> : measurements.slice().reverse().map((record, index) => <View key={record.id} style={{ paddingVertical: 12, ...(index < measurements.length - 1 ? { borderBottomWidth: 1, borderBottomColor: C.border } : {}) }}><Text style={{ color: C.textMuted, fontSize: 12 }}>{new Date(record.createdAt).toLocaleDateString('pt-BR')}</Text><Text style={{ color: C.text, fontWeight: '700', marginTop: 3 }}>{[record.weight && `Peso: ${record.weight} kg`, record.waist && `Cintura: ${record.waist} cm`, record.hip && `Quadril: ${record.hip} cm`, record.arm && `Braço: ${record.arm} cm`, record.bodyFat && `Gordura: ${record.bodyFat}%`].filter(Boolean).join(' · ')}</Text></View>)}
+    </View>
   </ScrollView><Modal visible={editing} animationType="slide" presentationStyle="pageSheet"><ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={{ padding: 24, paddingBottom: 50 }} keyboardShouldPersistTaps="handled"><Text style={{ color: C.text, fontSize: 22, fontWeight: '900', marginBottom: 18 }}>Editar dados da meta</Text>{field('weight', 'Peso atual', 'kg')}{field('height', 'Altura', 'cm')}{field('targetWeight', 'Peso desejado', 'kg')}{field('waterGoal', 'Meta diária de água', 'L')}<Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 7 }}>OBJETIVO</Text><View style={{ gap: 8 }}>{GOALS.map(goal => <TouchableOpacity key={goal} onPress={() => setForm(prev => ({ ...prev, goal }))} style={{ borderWidth: 1, borderColor: form.goal === goal ? C.primary : C.border, backgroundColor: form.goal === goal ? C.primarySoft : C.surface, borderRadius: 12, padding: 13 }}><Text style={{ color: form.goal === goal ? C.primary : C.text, fontWeight: '700' }}>{goal}</Text></TouchableOpacity>)}</View><TouchableOpacity onPress={save} style={{ backgroundColor: C.primary, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 20 }}><Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Salvar e recalcular</Text></TouchableOpacity><TouchableOpacity onPress={closeEditor} style={{ padding: 15, alignItems: 'center' }}><Text style={{ color: C.textMuted, fontWeight: '700' }}>Cancelar</Text></TouchableOpacity></ScrollView></Modal></View>;
 }

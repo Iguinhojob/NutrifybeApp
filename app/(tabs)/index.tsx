@@ -4,10 +4,11 @@ import { useAppLayout } from '@/hooks/useAppLayout';
 import { usePremiumTheme } from '@/context/theme';
 import { calculateCalorieGoal, calculateGoalProjection } from '@/utils/onboarding';
 import { DiaryAPI, type FoodSearchResult } from '@/services/api';
+import { formatFoodName, formatFoodText } from '@/utils/foodNames';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 const MEAL_SECTIONS: { key: MealType; label: string; icon: keyof typeof Ionicons.glyphMap; accent: string }[] = [
@@ -35,7 +36,7 @@ function defaultMealType(): MealType {
 
 const roundMacro = (value: number) => Math.round(value * 10) / 10;
 type FoodSelection = FoodSearchResult & { gramsText: string };
-type FoodDetail = FoodSelection & { grams: number; calories: number; carbs?: number; protein?: number; fat?: number };
+type FoodDetail = FoodSelection & { grams: number; calories: number; carbs?: number; protein?: number; fat?: number; fiber?: number };
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -46,9 +47,6 @@ export default function HomeScreen() {
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [pendingDeleteMeal, setPendingDeleteMeal] = useState<MealRecord | null>(null);
   const [editingMeal, setEditingMeal] = useState<MealRecord | null>(null);
-  const [legacyEditMode, setLegacyEditMode] = useState(false);
-  const [legacyMealName, setLegacyMealName] = useState('');
-  const [legacyMacros, setLegacyMacros] = useState({ calories: '', carbs: '', protein: '', fat: '' });
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [type, setType] = useState<MealType>(defaultMealType());
@@ -66,9 +64,7 @@ export default function HomeScreen() {
   const projection = user ? calculateGoalProjection(user) : null;
   const grouped = useMemo(() => Object.fromEntries(MEAL_SECTIONS.map(section => [section.key, mealsToday.filter(meal => mealType(meal) === section.key)])) as Record<MealType, MealRecord[]>, [mealsToday]);
   const dailyMacros = useMemo(() => mealsToday.reduce((total, meal) => ({
-    carbs: total.carbs + (meal.carbs ?? 0),
-    protein: total.protein + (meal.protein ?? 0),
-    fat: total.fat + (meal.fat ?? 0),
+    carbs: total.carbs + (meal.carbs ?? 0), protein: total.protein + (meal.protein ?? 0), fat: total.fat + (meal.fat ?? 0),
   }), { carbs: 0, protein: 0, fat: 0 }), [mealsToday]);
   const selectedDetails = useMemo<FoodDetail[]>(() => selectedFoods.map(selection => {
     const grams = Number(selection.gramsText.replace(',', '.'));
@@ -80,13 +76,15 @@ export default function HomeScreen() {
       carbs: selection.carbsPer100g == null ? undefined : roundMacro(selection.carbsPer100g * factor),
       protein: selection.proteinPer100g == null ? undefined : roundMacro(selection.proteinPer100g * factor),
       fat: selection.fatPer100g == null ? undefined : roundMacro(selection.fatPer100g * factor),
+      fiber: selection.fiberPer100g == null ? undefined : roundMacro(selection.fiberPer100g * factor),
     };
   }), [selectedFoods]);
   const macroValues = useMemo(() => selectedDetails.reduce((total, item) => ({
     carbs: total.carbs + (item.carbs ?? 0),
     protein: total.protein + (item.protein ?? 0),
     fat: total.fat + (item.fat ?? 0),
-  }), { carbs: 0, protein: 0, fat: 0 }), [selectedDetails]);
+    fiber: total.fiber + (item.fiber ?? 0),
+  }), { carbs: 0, protein: 0, fat: 0, fiber: 0 }), [selectedDetails]);
   const calculatedCalories = Math.round(selectedDetails.reduce((total, item) => total + item.calories, 0));
 
   useEffect(() => {
@@ -112,7 +110,6 @@ export default function HomeScreen() {
 
   const openMealForm = (meal: MealType = defaultMealType()) => {
     setEditingMeal(null);
-    setLegacyEditMode(false);
     setType(meal);
     setFoodSearch('');
     setSelectedFoods([]);
@@ -127,38 +124,35 @@ export default function HomeScreen() {
     if (saving) return;
     setVisible(false);
     setEditingMeal(null);
-    setLegacyEditMode(false);
   };
 
   const openEditMeal = (meal: MealRecord) => {
     const items = (meal.items ?? []) as MealFoodItem[];
+    const hasTacoDetails = items.length > 0 && items.every(item => item && Number(item.alimentoId) > 0 && Number(item.gramas ?? item.grams) > 0 && Number(item.calories) >= 0);
+    if (!hasTacoDetails) {
+      Alert.alert('Edição indisponível', 'Este registro não tem itens TACO vinculados. Exclua-o e registre novamente pela busca de alimentos para obter os cálculos atuais.');
+      return;
+    }
     setEditingMeal(meal);
     setType(mealType(meal));
     setFoodSearch('');
-    const hasCompleteFoodDetails = items.length > 0 && items.every(item => item && item.foodId && item.name && Number(item.grams) > 0 && Number(item.calories) >= 0);
-    setLegacyEditMode(!hasCompleteFoodDetails);
-    if (hasCompleteFoodDetails) {
-      const portions = items.map(item => `${item.name} - ${item.grams} g - ${item.calories} kcal`).join(' | ');
-      const savedDescription = meal.description ?? '';
-      setDescription(savedDescription.startsWith(portions) ? savedDescription.slice(portions.length).replace(/^\s*\|\s*/, '').trim() : '');
-      setSelectedFoods(items.map(item => ({
-        foodId: item.foodId,
-        description: item.name,
-        dataType: item.dataType ?? '',
-        brandName: item.brandName ?? '',
-        source: item.dataSource ?? 'USDA FoodData Central',
-        gramsText: String(item.grams),
-        caloriesPer100g: item.caloriesPer100g ?? Number(item.calories) * 100 / Number(item.grams),
-        carbsPer100g: item.carbsPer100g ?? (item.carbs == null ? undefined : Number(item.carbs) * 100 / Number(item.grams)),
-        proteinPer100g: item.proteinPer100g ?? (item.protein == null ? undefined : Number(item.protein) * 100 / Number(item.grams)),
-        fatPer100g: item.fatPer100g ?? (item.fat == null ? undefined : Number(item.fat) * 100 / Number(item.grams)),
-      })));
-    } else {
-      setDescription(meal.description ?? '');
-      setSelectedFoods([]);
-      setLegacyMealName(meal.name);
-      setLegacyMacros({ calories: String(meal.calories), carbs: meal.carbs == null ? '' : String(meal.carbs), protein: meal.protein == null ? '' : String(meal.protein), fat: meal.fat == null ? '' : String(meal.fat) });
-    }
+    const portions = items.map(item => `${item.name} - ${item.gramas ?? item.grams} g - ${item.calories} kcal`).join(' | ');
+    const savedDescription = meal.description ?? '';
+    setDescription(savedDescription.startsWith(portions) ? savedDescription.slice(portions.length).replace(/^\s*\|\s*/, '').trim() : '');
+    setSelectedFoods(items.map(item => ({
+      foodId: String(item.alimentoId),
+      description: formatFoodName(item.name),
+      dataType: item.dataType ?? 'TACO',
+      brandName: '',
+      alimentoId: Number(item.alimentoId),
+      source: item.dataSource ?? 'TACO 4ª edição, NEPA/UNICAMP',
+      gramsText: String(item.gramas ?? item.grams),
+      caloriesPer100g: item.caloriesPer100g ?? Number(item.calories) * 100 / Number(item.gramas ?? item.grams),
+      carbsPer100g: item.carbsPer100g ?? (item.carbs == null ? undefined : Number(item.carbs) * 100 / Number(item.gramas ?? item.grams)),
+      proteinPer100g: item.proteinPer100g ?? (item.protein == null ? undefined : Number(item.protein) * 100 / Number(item.gramas ?? item.grams)),
+      fatPer100g: item.fatPer100g ?? (item.fat == null ? undefined : Number(item.fat) * 100 / Number(item.gramas ?? item.grams)),
+      fiberPer100g: item.fiberPer100g ?? (item.fiber == null ? undefined : Number(item.fiber) * 100 / Number(item.gramas ?? item.grams)),
+    })));
     setFormError('');
     setDeleteError('');
     setDeleteVisible(false);
@@ -193,28 +187,6 @@ export default function HomeScreen() {
   };
 
   const save = async () => {
-    if (legacyEditMode && editingMeal) {
-      const calories = Number(legacyMacros.calories.replace(',', '.'));
-      const optionalMacro = (value: string) => value.trim() ? Number(value.replace(',', '.')) : undefined;
-      const carbs = optionalMacro(legacyMacros.carbs);
-      const protein = optionalMacro(legacyMacros.protein);
-      const fat = optionalMacro(legacyMacros.fat);
-      const invalidMacro = [carbs, protein, fat].some(value => value !== undefined && (!Number.isFinite(value) || value < 0));
-      if (!legacyMealName.trim() || !legacyMacros.calories.trim() || !Number.isFinite(calories) || calories < 0 || invalidMacro) {
-        setFormError('Confira o nome e os valores nutricionais. Use apenas numeros iguais ou maiores que zero.');
-        return;
-      }
-      setSaving(true);
-      try {
-        await updateMeal(editingMeal.id, { name: legacyMealName.trim(), description: description.trim(), calories, carbs, protein, fat, items: editingMeal.items, source: editingMeal.source, referenceId: editingMeal.referenceId });
-        setVisible(false);
-        setEditingMeal(null);
-        setLegacyEditMode(false);
-      } catch {
-        setFormError('Nao foi possivel sincronizar a correcao. Confira a conexao e tente novamente.');
-      } finally { setSaving(false); }
-      return;
-    }
     if (!selectedDetails.length || selectedDetails.some(item => item.grams <= 0) || calculatedCalories <= 0) {
       setFormError('Adicione pelo menos um alimento à refeição.');
       return;
@@ -230,11 +202,12 @@ export default function HomeScreen() {
         carbs: roundMacro(macroValues.carbs),
         protein: roundMacro(macroValues.protein),
         fat: roundMacro(macroValues.fat),
+        fiber: roundMacro(macroValues.fiber),
         items: selectedDetails.map(item => ({
-          foodId: item.foodId, name: item.description, quantity: item.grams, portionLabel: 'g', grams: item.grams,
-          calories: item.calories, carbs: item.carbs ?? 0, protein: item.protein ?? 0, fat: item.fat ?? 0,
+          foodId: item.foodId, alimentoId: item.alimentoId, gramas: item.grams, name: item.description, quantity: item.grams, portionLabel: 'g', grams: item.grams,
+          calories: Math.round(item.calories), carbs: roundMacro(item.carbs ?? 0), protein: roundMacro(item.protein ?? 0), fat: roundMacro(item.fat ?? 0), fiber: roundMacro(item.fiber ?? 0),
           caloriesPer100g: item.caloriesPer100g, carbsPer100g: item.carbsPer100g, proteinPer100g: item.proteinPer100g,
-          fatPer100g: item.fatPer100g, dataSource: item.source, dataType: item.dataType, brandName: item.brandName,
+          fatPer100g: item.fatPer100g, fiberPer100g: item.fiberPer100g, dataSource: item.source, dataType: item.dataType, brandName: item.brandName,
         })),
         source: editingMeal?.source ?? 'manual' as const,
         referenceId: editingMeal?.referenceId,
@@ -243,8 +216,11 @@ export default function HomeScreen() {
       else await addMeal(data);
       setVisible(false);
       setEditingMeal(null);
-    } catch {
-      setFormError('NÃ£o foi possÃ­vel sincronizar a refeiÃ§Ã£o. Confira a conexÃ£o e tente novamente.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      setFormError(!message || /failed to fetch|network request failed|load failed/i.test(message)
+        ? 'Não foi possível conectar à API. Confira a conexão e tente novamente.'
+        : message);
     } finally { setSaving(false); }
   };
 
@@ -265,14 +241,9 @@ export default function HomeScreen() {
         <View style={styles.progress}><View style={[styles.progressFill, { width: `${pct * 100}%` as any }]} /></View>
         <Text style={styles.remaining}>{goal ? `${Math.max(goal - safeCalories, 0)} kcal restantes` : 'Complete o perfil para calcular a meta.'}</Text>
       </View>
-
-      <View style={styles.dailyMacroRow}>
-        {[
-          ['Carboidratos', dailyMacros.carbs, '#F97316'],
-          ['Proteínas', dailyMacros.protein, '#3B82F6'],
-          ['Gorduras', dailyMacros.fat, '#CA8A04'],
-        ].map(([label, value, color]) => <View key={String(label)} style={[styles.dailyMacroCard, { backgroundColor: C.surface }]}><View style={[styles.dailyMacroDot, { backgroundColor: String(color) }]} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.dailyMacroValue, { color: C.text }]}>{roundMacro(Number(value))}g</Text><Text numberOfLines={1} style={[styles.dailyMacroLabel, { color: C.textMuted }]}>{label}</Text></View>)}
-      </View>
+      <View style={styles.dailyMacroRow}>{[
+        ['Carboidratos', dailyMacros.carbs, '#F97316'], ['Proteínas', dailyMacros.protein, '#3B82F6'], ['Gorduras', dailyMacros.fat, '#CA8A04'],
+      ].map(([label, value, color]) => <View key={String(label)} style={[styles.dailyMacroCard, { backgroundColor: C.surface }]}><View style={[styles.dailyMacroDot, { backgroundColor: String(color) }]} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.dailyMacroValue, { color: C.text }]}>{roundMacro(Number(value))}g</Text><Text numberOfLines={1} style={[styles.dailyMacroLabel, { color: C.textMuted }]}>{label}</Text></View>)}</View>
 
       <View style={styles.sectionHeading}><View><Text style={[styles.sectionTitle, { color: C.text }]}>Diário alimentar</Text><Text style={[styles.sectionSubtitle, { color: C.textMuted }]}>Registre o que você realmente consumiu.</Text></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Corrigir ou excluir refeições" onPress={() => setDeleteVisible(true)} style={[styles.addCircle, { backgroundColor: C.surface2 }]}><Ionicons name="create-outline" size={18} color={C.primary} /></TouchableOpacity><TouchableOpacity onPress={() => openMealForm()} style={[styles.addMain, { backgroundColor: C.primary }]}><Ionicons name="add" size={19} color="#fff" /><Text style={{ color: '#fff', fontWeight: '900', fontSize: 12 }}>Adicionar</Text></TouchableOpacity></View></View>
 
@@ -282,8 +253,8 @@ export default function HomeScreen() {
         return <View key={section.key} style={[styles.mealCard, { backgroundColor: C.surface, borderColor: C.border }]}>
           <View style={styles.mealCardHeader}><View style={[styles.mealIcon, { backgroundColor: `${section.accent}18` }]}><Ionicons name={section.icon} size={20} color={section.accent} /></View><View style={{ flex: 1 }}><Text style={[styles.mealTitle, { color: C.text }]}>{section.label}</Text><Text style={[styles.mealSummary, { color: C.textMuted }]}>{entries.length ? `${entries.length} ${entries.length === 1 ? 'registro' : 'registros'}` : 'Nenhum registro'}</Text></View><Text style={[styles.mealTotal, { color: entries.length ? C.text : C.textDim }]}>{total} kcal</Text><TouchableOpacity accessibilityLabel={`Adicionar em ${section.label}`} onPress={() => openMealForm(section.key)} style={[styles.addCircle, { backgroundColor: C.primarySoft }]}><Ionicons name="add" size={20} color={C.primary} /></TouchableOpacity></View>
           {entries.length > 0 && <View style={[styles.entryList, { borderTopColor: C.border }]}>{entries.map((meal, index) => {
-            const hasMacros = meal.carbs !== undefined || meal.protein !== undefined || meal.fat !== undefined;
-            return <View key={meal.id} style={[styles.entry, index < entries.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={styles.entryContent}><Text numberOfLines={1} style={[styles.entryName, { color: C.text }]}>{meal.name.replace(`${section.label} — `, '')}</Text>{!!meal.description && <Text numberOfLines={2} style={[styles.entryDescription, { color: C.textMuted }]}>{meal.description}</Text>}{hasMacros && <View style={styles.entryMacroRow}><Text style={[styles.entryMacro, { color: '#F97316' }]}>C {meal.carbs ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#3B82F6' }]}>P {meal.protein ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#CA8A04' }]}>G {meal.fat ?? 0}g</Text></View>}</View><View style={[styles.entryKcalBadge, { backgroundColor: C.primarySoft }]}><Text numberOfLines={1} style={[styles.entryKcal, { color: C.primary }]}>{meal.calories} kcal</Text></View></View>;
+            const hasMacros = meal.carbs !== undefined || meal.protein !== undefined || meal.fat !== undefined || meal.fiber !== undefined;
+            return <View key={meal.id} style={[styles.entry, index < entries.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={styles.entryContent}><Text numberOfLines={1} style={[styles.entryName, { color: C.text }]}>{meal.name.replace(`${section.label} — `, '')}</Text>{!!meal.description && <Text numberOfLines={2} style={[styles.entryDescription, { color: C.textMuted }]}>{formatFoodText(meal.description)}</Text>}{hasMacros && <View style={styles.entryMacroRow}><Text style={[styles.entryMacro, { color: '#F97316' }]}>C {meal.carbs ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#3B82F6' }]}>P {meal.protein ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#CA8A04' }]}>G {meal.fat ?? 0}g</Text><Text style={[styles.entryMacro, { color: '#16A34A' }]}>F {meal.fiber ?? 0}g</Text></View>}</View><View style={[styles.entryKcalBadge, { backgroundColor: C.primarySoft }]}><Text numberOfLines={1} style={[styles.entryKcal, { color: C.primary }]}>{meal.calories} kcal</Text></View></View>;
           })}</View>}
         </View>;
       })}
@@ -296,34 +267,28 @@ export default function HomeScreen() {
       <View style={[styles.modal, { backgroundColor: C.bg }]}>
         <View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.modalTitle, { color: C.text }]}>{editingMeal ? 'Corrigir refeição' : 'Registrar refeição'}</Text><Text style={[styles.modalSubtitle, { color: C.textMuted }]}>Pesquise o alimento, escolha a correspondência e informe o peso em gramas.</Text></View><TouchableOpacity onPress={closeMealForm} style={[styles.close, { backgroundColor: C.surface }]}><Ionicons name="close" size={22} color={C.text} /></TouchableOpacity></View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingBottom: 30 }}>
-          {legacyEditMode ? <>
-            <View style={[styles.emptySelection, { borderColor: C.border, gap: 10 }]}><Ionicons name="information-circle-outline" size={24} color={C.primary} /><Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 18 }}>Este registro não tem alimentos detalhados. Você pode corrigir os valores manualmente; a data original e os alimentos salvos serão preservados.</Text></View>
-            <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>NOME DA REFEIÇÃO</Text><TextInput value={legacyMealName} onChangeText={setLegacyMealName} placeholder="Ex.: Almoço" placeholderTextColor={C.textDim} style={[styles.input, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]} /></View>
-            <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>CALORIAS (KCAL)</Text><TextInput value={legacyMacros.calories} onChangeText={value => setLegacyMacros(current => ({ ...current, calories: value.replace(/[^\d.,]/g, '') }))} keyboardType="decimal-pad" style={[styles.input, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]} /></View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>{(['carbs', 'protein', 'fat'] as const).map((key, index) => <View key={key} style={{ flex: 1 }}><Text style={[styles.fieldLabel, { color: C.textMuted }]}>{['CARBOIDRATOS', 'PROTEÍNAS', 'GORDURAS'][index]} (G)</Text><TextInput value={legacyMacros[key]} onChangeText={value => setLegacyMacros(current => ({ ...current, [key]: value.replace(/[^\d.,]/g, '') }))} keyboardType="decimal-pad" placeholder="—" placeholderTextColor={C.textDim} style={[styles.input, { color: C.text, borderColor: C.border, backgroundColor: C.surface, paddingHorizontal: 8 }]} /></View>)}</View>
-          </> : <>
+
           <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>TIPO DE REFEIÇÃO</Text><View style={styles.typeGrid}>{MEAL_SECTIONS.map(section => <TouchableOpacity key={section.key} onPress={() => { setType(section.key); setFormError(''); }} style={[styles.typeOption, { borderColor: type === section.key ? C.primary : C.border, backgroundColor: type === section.key ? C.primarySoft : C.surface }]}><Ionicons name={section.icon} size={18} color={type === section.key ? C.primary : C.textMuted} /><Text style={{ color: type === section.key ? C.primary : C.text, fontWeight: '800', fontSize: 11 }}>{section.label}</Text></TouchableOpacity>)}</View></View>
           <View>
             <Text style={[styles.fieldLabel, { color: C.textMuted }]}>ADICIONE O QUE VOCÊ COMEU</Text>
             <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.surface }]}><Ionicons name="search-outline" size={19} color={C.textMuted} /><TextInput value={foodSearch} onChangeText={setFoodSearch} placeholder="Buscar arroz, feijão, frango..." placeholderTextColor={C.textDim} style={[styles.searchInput, { color: C.text }]} />{!!foodSearch && <TouchableOpacity accessibilityLabel="Limpar busca" onPress={() => setFoodSearch('')}><Ionicons name="close-circle" size={19} color={C.textDim} /></TouchableOpacity>}</View>
-            <Text style={[styles.searchHint, { color: C.textMuted }]}>{foodSearch.trim().length < 2 ? 'Digite pelo menos 2 letras para buscar' : searchingFoods ? 'Buscando na base nutricional...' : foodSearchError ? 'Busca indisponível' : `${foodResults.length} resultados da FoodData Central`}</Text>
+            <Text style={[styles.searchHint, { color: C.textMuted }]}>{foodSearch.trim().length < 2 ? 'Digite pelo menos 2 letras para buscar' : searchingFoods ? 'Buscando na base nutricional...' : foodSearchError ? 'Busca indisponível' : `${foodResults.length} resultados da TACO`}</Text>
             <View style={[styles.foodResults, { borderColor: C.border, backgroundColor: C.surface }]}>
               {searchingFoods ? <View style={styles.noFood}><ActivityIndicator color={C.primary} /><Text style={{ color: C.textMuted, fontSize: 12 }}>Consultando alimentos...</Text></View> : foodSearchError ? <View style={styles.noFood}><Ionicons name="cloud-offline-outline" size={23} color={C.textDim} /><Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 12 }}>{foodSearchError}</Text></View> : foodResults.length ? foodResults.map((food, index) => {
                 const added = selectedFoods.some(item => item.foodId === food.foodId);
-                return <TouchableOpacity key={food.foodId} disabled={added} onPress={() => addFood(food)} style={[styles.foodResult, index < foodResults.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={[styles.foodResultIcon, { backgroundColor: added ? C.successSoft : C.primarySoft }]}><Ionicons name={added ? 'checkmark' : 'add'} size={18} color={added ? C.success : C.primary} /></View><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={2} style={[styles.foodResultName, { color: C.text }]}>{food.description}</Text><Text numberOfLines={1} style={[styles.foodResultPortion, { color: C.textMuted }]}>{food.dataType}{food.brandName ? ` · ${food.brandName}` : ''} · {food.caloriesPer100g} kcal/100 g</Text></View><Text style={{ color: added ? C.success : C.primary, fontSize: 10, fontWeight: '900' }}>{added ? 'ADICIONADO' : 'ADICIONAR'}</Text></TouchableOpacity>;
+                return <TouchableOpacity key={food.foodId} disabled={added} onPress={() => addFood(food)} style={[styles.foodResult, index < foodResults.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={[styles.foodResultIcon, { backgroundColor: added ? C.successSoft : C.primarySoft }]}><Ionicons name={added ? 'checkmark' : 'add'} size={18} color={added ? C.success : C.primary} /></View><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={2} style={[styles.foodResultName, { color: C.text }]}>{food.description}</Text><Text numberOfLines={1} style={[styles.foodResultPortion, { color: C.textMuted }]}>TACO · {food.caloriesPer100g} kcal/100 g</Text></View><Text style={{ color: added ? C.success : C.primary, fontSize: 10, fontWeight: '900' }}>{added ? 'ADICIONADO' : 'ADICIONAR'}</Text></TouchableOpacity>;
               }) : <View style={styles.noFood}><Ionicons name="search-outline" size={23} color={C.textDim} /><Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 12 }}>{foodSearch.trim().length < 2 ? 'Os resultados reais aparecerão aqui.' : 'Nenhum resultado. Tente outro nome ou uma descrição mais simples.'}</Text></View>}
             </View>
           </View>
 
           <View>
             <Text style={[styles.fieldLabel, { color: C.textMuted }]}>MINHA REFEIÇÃO ({selectedDetails.length})</Text>
-            {selectedDetails.length ? <View style={[styles.selectedList, { borderColor: C.border, backgroundColor: C.surface }]}>{selectedDetails.map((item, index) => <View key={item.foodId} style={[styles.selectedFood, index < selectedDetails.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={2} style={[styles.selectedFoodName, { color: C.text }]}>{item.description}</Text><Text style={[styles.selectedFoodPortion, { color: C.textMuted }]}>{item.calories} kcal · {item.grams} g{item.brandName ? ` · ${item.brandName}` : ''}</Text><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}><TextInput accessibilityLabel={`Quantidade em gramas de ${item.description}`} value={item.gramsText} onChangeText={value => changeFoodGrams(item.foodId, value)} keyboardType="decimal-pad" placeholder="Gramas" placeholderTextColor={C.textDim} style={[styles.gramInput, { color: C.text, borderColor: C.border, backgroundColor: C.surface2 }]} /><Text style={{ color: C.textMuted, fontSize: 12 }}>g</Text></View></View><TouchableOpacity accessibilityLabel={`Remover ${item.description}`} onPress={() => removeFood(item.foodId)} style={[styles.removeFoodButton, { backgroundColor: C.dangerSoft }]}><Ionicons name="trash-outline" size={16} color={C.danger} /></TouchableOpacity></View>)}</View> : <View style={[styles.emptySelection, { borderColor: C.border }]}><Ionicons name="restaurant-outline" size={24} color={C.textDim} /><Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center' }}>Escolha um resultado e informe a quantidade em gramas.</Text></View>}
+            {selectedDetails.length ? <View style={[styles.selectedList, { borderColor: C.border, backgroundColor: C.surface }]}>{selectedDetails.map((item, index) => <View key={item.foodId} style={[styles.selectedFood, index < selectedDetails.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={2} style={[styles.selectedFoodName, { color: C.text }]}>{item.description}</Text><Text style={[styles.selectedFoodPortion, { color: C.textMuted }]}>{item.calories} kcal · {item.grams} g · C {item.carbs ?? 0} · P {item.protein ?? 0} · G {item.fat ?? 0} · F {item.fiber ?? 0}{item.brandName ? ` · ${item.brandName}` : ''}</Text><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}><TextInput accessibilityLabel={`Quantidade em gramas de ${item.description}`} value={item.gramsText} onChangeText={value => changeFoodGrams(item.foodId, value)} keyboardType="decimal-pad" placeholder="Gramas" placeholderTextColor={C.textDim} style={[styles.gramInput, { color: C.text, borderColor: C.border, backgroundColor: C.surface2 }]} /><Text style={{ color: C.textMuted, fontSize: 12 }}>g</Text></View></View><TouchableOpacity accessibilityLabel={`Remover ${item.description}`} onPress={() => removeFood(item.foodId)} style={[styles.removeFoodButton, { backgroundColor: C.dangerSoft }]}><Ionicons name="trash-outline" size={16} color={C.danger} /></TouchableOpacity></View>)}</View> : <View style={[styles.emptySelection, { borderColor: C.border }]}><Ionicons name="restaurant-outline" size={24} color={C.textDim} /><Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center' }}>Escolha um resultado e informe a quantidade em gramas.</Text></View>}
           </View>
 
-          <View style={[styles.calculatedCard, { backgroundColor: C.primarySoft }]}><View style={[styles.calculatedIcon, { backgroundColor: C.primary }]}><Ionicons name="sparkles" size={21} color="#fff" /></View><View style={{ flex: 1, minWidth: 0 }}><Text style={[styles.calculatedLabel, { color: C.textMuted }]}>ESTIMATIVA DA REFEIÇÃO</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.calculatedValue, { color: C.text }]}>{calculatedCalories} kcal</Text><View style={styles.calculatedMacros}><Text style={{ color: '#F97316', fontSize: 10, fontWeight: '900' }}>C {roundMacro(macroValues.carbs)}g</Text><Text style={{ color: '#3B82F6', fontSize: 10, fontWeight: '900' }}>P {roundMacro(macroValues.protein)}g</Text><Text style={{ color: '#CA8A04', fontSize: 10, fontWeight: '900' }}>G {roundMacro(macroValues.fat)}g</Text></View></View></View>
-          </>}
+          <View style={[styles.calculatedCard, { backgroundColor: C.primarySoft }]}><View style={[styles.calculatedIcon, { backgroundColor: C.primary }]}><Ionicons name="sparkles" size={21} color="#fff" /></View><View style={{ flex: 1, minWidth: 0 }}><Text style={[styles.calculatedLabel, { color: C.textMuted }]}>ESTIMATIVA DA REFEIÇÃO</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.calculatedValue, { color: C.text }]}>{calculatedCalories} kcal</Text><View style={styles.calculatedMacros}><Text style={{ color: '#F97316', fontSize: 10, fontWeight: '900' }}>C {roundMacro(macroValues.carbs)}g</Text><Text style={{ color: '#3B82F6', fontSize: 10, fontWeight: '900' }}>P {roundMacro(macroValues.protein)}g</Text><Text style={{ color: '#CA8A04', fontSize: 10, fontWeight: '900' }}>G {roundMacro(macroValues.fat)}g</Text><Text style={{ color: '#16A34A', fontSize: 10, fontWeight: '900' }}>F {roundMacro(macroValues.fiber)}g</Text></View></View></View>
           <View><Text style={[styles.fieldLabel, { color: C.textMuted }]}>OBSERVAÇÃO (OPCIONAL)</Text><TextInput value={description} onChangeText={setDescription} placeholder="Ex.: preparado com pouco óleo" placeholderTextColor={C.textDim} multiline style={[styles.input, styles.textarea, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]} /></View>
-          <View style={[styles.estimateNotice, { backgroundColor: C.warningSoft }]}><Ionicons name="information-circle-outline" size={18} color={C.warning} /><Text style={{ color: C.textMuted, flex: 1, fontSize: 10, lineHeight: 15 }}>Calorias e macros vêm da FoodData Central por 100 g e são recalculados pela quantidade informada. Preparo e marca podem alterar a composição; confira se selecionou a correspondência correta.</Text></View>
+          <View style={[styles.estimateNotice, { backgroundColor: C.warningSoft }]}><Ionicons name="information-circle-outline" size={18} color={C.warning} /><Text style={{ color: C.textMuted, flex: 1, fontSize: 10, lineHeight: 15 }}>Estimativas calculadas pelo Nutrifybe com valores por 100 g. Fonte: TACO 4ª edição, NEPA/UNICAMP. O backend recalcula os valores pela quantidade registrada.</Text></View>
           {!!formError && <View style={[styles.formError, { backgroundColor: C.dangerSoft }]}><Ionicons name="alert-circle-outline" size={17} color={C.danger} /><Text style={{ color: C.danger, flex: 1, fontSize: 12 }}>{formError}</Text></View>}
           <TouchableOpacity disabled={saving} onPress={() => void save()} style={[styles.saveButton, { backgroundColor: C.primary }]}>{saving ? <ActivityIndicator color="#fff" /> : <><Ionicons name="checkmark" size={20} color="#fff" /><Text style={styles.buttonText}>{editingMeal ? 'Salvar correções' : 'Salvar refeição'}</Text></>}</TouchableOpacity>
         </ScrollView>
