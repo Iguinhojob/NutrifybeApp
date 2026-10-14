@@ -3,6 +3,7 @@ import { DiaryProvider } from '@/context/diary';
 import { OnboardingProvider } from '@/context/onboarding';
 import { ThemeProvider, usePremiumTheme } from '@/context/theme';
 import { ToastProvider } from '@/components/ui-kit';
+import { FybeLayer, FybeProvider } from '@/components/fybe';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
@@ -34,6 +35,7 @@ function AppStack() {
         <Stack.Screen name="nutri/tracking"            options={{ headerShown: true, title: 'Registro de Medidas',     headerTintColor: colors.primaryText, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />
         <Stack.Screen name="notifications"             options={{ headerShown: true, title: 'Notificações',            headerTintColor: colors.primaryText, headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { color: colors.text }, animation: 'slide_from_right' }} />
       </Stack>
+      <FybeLayer />
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </>
   );
@@ -46,7 +48,9 @@ export default function RootLayout() {
         <DiaryProvider>
           <OnboardingProvider>
             <ToastProvider>
-              <AppStack />
+              <FybeProvider>
+                <AppStack />
+              </FybeProvider>
             </ToastProvider>
           </OnboardingProvider>
         </DiaryProvider>

@@ -13,3 +13,5 @@ expo-env.d.ts
 dist/
 .expo/
 .expo-export-check/
+
+__pycache__/

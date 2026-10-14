@@ -25,7 +25,8 @@ O token de acesso fica guardado no armazenamento seguro do aparelho (`expo-secur
 - `app/auth`: boas-vindas, cadastro em etapas, login e recuperação de senha.
 - `components/ui-kit.tsx`: botões, cartões, avisos e estados de carregamento, vazio e erro compartilhados.
 - `components/follow-up-status.tsx`: estado do acompanhamento (modo solo, aguardando resposta ou ativo).
+- `components/fybe/`: o Fybe, assistente de navegação com ajuda por tela e tutoriais guiados (sem IA e sem serviços externos).
 - `context/`: autenticação, diário, tema e cadastro.
 - `services/api.ts`: chamadas à API.
 
-Os detalhes das mudanças de interface e as limitações conhecidas estão em `docs/melhorias-interface.md`.
+Os detalhes das mudanças de interface e as limitações conhecidas estão em `docs/melhorias-interface.md`. O funcionamento do Fybe está em `docs/fybe.md`.

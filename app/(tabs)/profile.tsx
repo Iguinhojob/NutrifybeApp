@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FollowUpStatusCard } from '@/components/follow-up-status';
+import { FybeTarget, FybeTourSpacer, useFybeScroll } from '@/components/fybe';
 import { useToast } from '@/components/ui-kit';
 
 const ACTIVITIES = ['Sedentário', 'Leve', 'Moderado', 'Intenso', 'Muito intenso'];
@@ -18,6 +19,7 @@ const MOMENTS: Record<string, string[]> = {
 };
 
 export default function ProfileScreen() {
+  const fybeScroll = useFybeScroll('/profile');
   const { user, updateUser, logout } = useAuth();
   const { colors, isDark, toggleTheme } = usePremiumTheme();
   const { topPad } = useAppLayout();
@@ -85,7 +87,7 @@ export default function ProfileScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={[s.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={fybeScroll} contentContainerStyle={[s.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         <View style={s.avatarSection}>
           <View style={[s.avatar, { backgroundColor: colors.primary }]}>
@@ -95,6 +97,7 @@ export default function ProfileScreen() {
           <Text style={[s.userEmail, { color: colors.textMuted }]}>{user?.email}</Text>
         </View>
 
+        <FybeTarget id="profile.nutrition">
         <View style={[s.card, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
           <View style={s.cardHeader}><Text style={[s.cardTitle, { color: colors.text }]}>Seu perfil nutricional</Text><TouchableOpacity onPress={editNutritionProfile}><Text style={[s.editBtn, { color: colors.primaryText }]}>Editar</Text></TouchableOpacity></View>
           {[
@@ -106,10 +109,12 @@ export default function ProfileScreen() {
             </View>
           ))}
         </View>
+        </FybeTarget>
 
-        <FollowUpStatusCard />
+        <FybeTarget id="profile.status"><FollowUpStatusCard /></FybeTarget>
 
         {/* Ferramentas que saíram da barra inferior continuam a um toque daqui */}
+        <FybeTarget id="profile.tools">
         <View style={[s.menu, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
           <Text accessibilityRole="header" style={[s.cardTitle, { color: colors.text, paddingHorizontal: 16, paddingTop: 16 }]}>Mais ferramentas</Text>
           {[
@@ -126,6 +131,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        </FybeTarget>
 
         {/* Dados pessoais */}
         <View style={[s.card, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
@@ -149,6 +155,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Menu */}
+        <FybeTarget id="profile.menu">
         <View style={[s.menu, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
           {menuItems.map((item, i) => (
             <TouchableOpacity key={i} accessibilityRole="button" style={[s.menuItem, i < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]} onPress={item.onPress}>
@@ -160,6 +167,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        </FybeTarget>
 
         <Modal visible={logoutModal} transparent animationType="fade" onRequestClose={() => setLogoutModal(false)}>
           <View style={s.overlay}>
@@ -194,6 +202,7 @@ export default function ProfileScreen() {
         </Modal>
 
         <View style={{ height: 100 }} />
+        <FybeTourSpacer pathname="/profile" />
       </ScrollView>
     </KeyboardAvoidingView>
   );

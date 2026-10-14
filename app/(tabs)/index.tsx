@@ -5,6 +5,7 @@ import { usePremiumTheme } from '@/context/theme';
 import { calculateGoalProjection } from '@/utils/onboarding';
 import { AppButton, Card, InlineNotice, SectionTitle, StatusPill, friendlyError, useToast } from '@/components/ui-kit';
 import { FollowUpStatusCard } from '@/components/follow-up-status';
+import { FybeTarget, useFybeScroll } from '@/components/fybe';
 import { useDailyGoal } from '@/hooks/use-daily-goal';
 import { DiaryAPI, type FoodSearchResult } from '@/services/api';
 import { formatFoodName, formatFoodText } from '@/utils/foodNames';
@@ -48,6 +49,7 @@ function isEditable(meal: MealRecord) {
 type FoodDetail = FoodSelection & { grams: number; calories: number; carbs?: number; protein?: number; fat?: number; fiber?: number };
 
 export default function HomeScreen() {
+  const fybeScroll = useFybeScroll('/');
   const { user, refreshUser } = useAuth();
   const { mealsToday, caloriesToday, addMeal, updateMeal, removeMeal, ready } = useDiary();
   const toast = useToast();
@@ -235,7 +237,7 @@ export default function HomeScreen() {
   const invalidGrams = selectedDetails.some(item => item.grams <= 0);
 
   return <View style={{ flex: 1, backgroundColor: C.bg }}>
-    <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false}>
+    <ScrollView ref={fybeScroll} contentContainerStyle={[styles.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text accessibilityRole="header" style={[styles.greeting, { color: C.text }]}>Olá, {firstName}</Text>
@@ -247,6 +249,7 @@ export default function HomeScreen() {
       </View>
 
       {/* Resumo do dia + ação principal */}
+      <FybeTarget id="home.summary">
       <View style={[styles.calorieCard, { backgroundColor: C.primary }]}>
         <Text style={styles.calorieEyebrow}>CONSUMO DE HOJE</Text>
         <View style={styles.calorieNumbers} accessible accessibilityLabel={`${safeCalories} de ${goal || 'sem meta'} quilocalorias consumidas hoje`}>
@@ -260,18 +263,22 @@ export default function HomeScreen() {
           {!goal ? 'Complete seu perfil para calcular a meta do dia.' : remaining >= 0 ? `${remaining} kcal restantes` : `${Math.abs(remaining)} kcal acima da meta`}
           {goal ? ` · ${fromPlan ? 'meta do seu plano alimentar' : 'meta estimada pelo app'}` : ''}
         </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Registrar refeição" onPress={() => openMealForm()} style={({ pressed }) => [styles.ctaButton, { opacity: pressed ? 0.88 : 1 }]}>
-          <Ionicons name="add-circle" size={22} color={C.primary} />
-          <Text style={[styles.ctaText, { color: C.primary }]}>Registrar refeição</Text>
-        </Pressable>
+        <FybeTarget id="home.register">
+          <Pressable accessibilityRole="button" accessibilityLabel="Registrar refeição" onPress={() => openMealForm()} style={({ pressed }) => [styles.ctaButton, { opacity: pressed ? 0.88 : 1 }]}>
+            <Ionicons name="add-circle" size={22} color={C.primary} />
+            <Text style={[styles.ctaText, { color: C.primary }]}>Registrar refeição</Text>
+          </Pressable>
+        </FybeTarget>
       </View>
+      </FybeTarget>
 
       <View style={styles.dailyMacroRow}>{[
         [isSmall ? 'Carb.' : 'Carboidratos', dailyMacros.carbs, '#EA580C'], ['Proteínas', dailyMacros.protein, '#2563EB'], ['Gorduras', dailyMacros.fat, '#A16207'],
       ].map(([label, value, color]) => <View key={String(label)} accessible accessibilityLabel={`${label}: ${roundMacro(Number(value))} gramas hoje`} style={[styles.dailyMacroCard, { backgroundColor: C.surface, borderColor: C.border }]}><View style={[styles.dailyMacroDot, { backgroundColor: String(color) }]} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.dailyMacroValue, { color: C.text }]}>{roundMacro(Number(value))} g</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.dailyMacroLabel, { color: C.textMuted }]}>{label}</Text></View>)}</View>
 
-      <FollowUpStatusCard compact />
+      <FybeTarget id="home.followup"><FollowUpStatusCard compact /></FybeTarget>
 
+      <FybeTarget id="home.diary" style={styles.diaryGroup}>
       <SectionTitle
         title="Diário de hoje"
         subtitle="Toque em uma refeição para adicionar, corrigir ou excluir."
@@ -320,13 +327,16 @@ export default function HomeScreen() {
           })}</View>}
         </View>;
       })}
+      </FybeTarget>
 
+      <FybeTarget id="home.shortcuts">
       <View style={styles.shortcuts}>{[
         { icon: 'water-outline' as const, label: 'Água', route: '/(tabs)/water' },
         { icon: 'body-outline' as const, label: 'IMC', route: '/(tabs)/bmi' },
         { icon: 'fitness-outline' as const, label: 'Medidas', route: '/nutri/tracking' },
         { icon: 'time-outline' as const, label: 'Histórico', route: '/(tabs)/history' },
       ].map(item => <Pressable accessibilityRole="button" accessibilityLabel={item.label} key={item.label} onPress={() => router.push(item.route as any)} style={[styles.shortcut, { backgroundColor: C.surface, borderColor: C.border }]}><Ionicons name={item.icon} size={21} color={C.primaryText} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.shortcutText, { color: C.text }]}>{item.label}</Text></Pressable>)}</View>
+      </FybeTarget>
 
       {/* Previsão: informação secundária e claramente marcada como estimativa */}
       <Card>
@@ -441,7 +451,7 @@ const styles = StyleSheet.create({
   dailyMacroRow: { flexDirection: 'row', gap: 9 }, dailyMacroCard: { flex: 1, minWidth: 0, borderRadius: 15, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 12, alignItems: 'center' }, dailyMacroDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 5 }, dailyMacroValue: { maxWidth: '100%', fontSize: 17, fontWeight: '900' }, dailyMacroLabel: { maxWidth: '100%', fontSize: 12, marginTop: 2 },
   loading: { minHeight: 150, alignItems: 'center', justifyContent: 'center', gap: 9 }, mealCard: { borderWidth: 1, borderRadius: 18, overflow: 'hidden' }, mealCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 }, mealIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, mealTitle: { fontSize: 15, fontWeight: '900' }, mealSummary: { fontSize: 13, marginTop: 2 }, addPill: { minHeight: 44, minWidth: 44, justifyContent: 'center', borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 4 },
   entryList: { borderTopWidth: 1, paddingHorizontal: 14 }, entry: { paddingVertical: 12, gap: 10 }, entryContent: { flex: 1, minWidth: 0 }, entryName: { fontSize: 14, fontWeight: '800', flexShrink: 1 }, entryDescription: { fontSize: 13, lineHeight: 18, marginTop: 3 }, entryMacros: { fontSize: 12, marginTop: 5 }, entryKcal: { fontSize: 14, fontWeight: '900' }, entryActions: { flexDirection: 'row', gap: 8 }, entryAction: { minHeight: 44, flex: 1, borderWidth: 1, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10 }, entryNote: { fontSize: 12, lineHeight: 17 },
-  shortcuts: { flexDirection: 'row', gap: 9, marginTop: 2 }, shortcut: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 4, gap: 5 }, shortcutText: { fontSize: 12, fontWeight: '700' },
+  diaryGroup: { gap: 14 }, shortcuts: { flexDirection: 'row', gap: 9, marginTop: 2 }, shortcut: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 4, gap: 5 }, shortcutText: { fontSize: 12, fontWeight: '700' },
   modal: { flex: 1, padding: 22, paddingTop: 28, gap: 20, width: '100%', maxWidth: 720, alignSelf: 'center' }, modalTitle: { fontSize: 24, fontWeight: '900' }, modalSubtitle: { fontSize: 13, marginTop: 3, lineHeight: 19 }, close: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, fieldLabel: { fontSize: 12, fontWeight: '900', letterSpacing: .6, marginBottom: 8 }, typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, typeOption: { width: '48%', flexGrow: 1, minHeight: 48, borderWidth: 1.5, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 7 },
   searchBox: { minHeight: 50, borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, searchInput: { flex: 1, minWidth: 0, fontSize: 15, paddingVertical: 11 }, searchHint: { fontSize: 12, fontWeight: '700', marginTop: 9, marginBottom: 6 }, foodResults: { borderWidth: 1, borderRadius: 15, overflow: 'hidden' }, foodResult: { minHeight: 61, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 10 }, foodResultIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, foodResultName: { fontSize: 14, fontWeight: '800' }, foodResultPortion: { fontSize: 12, marginTop: 3 }, noFood: { minHeight: 95, alignItems: 'center', justifyContent: 'center', padding: 15, gap: 8 },
   selectedList: { borderWidth: 1, borderRadius: 15, overflow: 'hidden' }, selectedFood: { padding: 12, gap: 10, flexDirection: 'row', alignItems: 'center' }, selectedFoodName: { fontSize: 14, fontWeight: '900' }, selectedFoodPortion: { fontSize: 12, lineHeight: 17, marginTop: 6 }, gramInput: { width: 90, minHeight: 44, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, fontSize: 16, fontWeight: '800' }, removeFoodButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, emptySelection: { minHeight: 105, borderWidth: 1, borderStyle: 'dashed', borderRadius: 15, alignItems: 'center', justifyContent: 'center', padding: 18, gap: 7 },

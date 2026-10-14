@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppButton, EmptyState, InlineNotice, StatusPill, useToast } from '@/components/ui-kit';
 import { FollowUpStatusCard } from '@/components/follow-up-status';
+import { FybeTarget, FybeTourSpacer, useFybeScroll } from '@/components/fybe';
 import { useAuth } from '@/context/auth';
 import { useDiary } from '@/context/diary';
 import { usePremiumTheme } from '@/context/theme';
@@ -16,6 +17,7 @@ type Plan = { version: number; meals: Meal[]; notes?: string };
 const keyFor = (userId: number, plan: string) => `nutrifybe:prescribed-meals:v1:${userId}:${localDateString()}:${plan.length}`;
 
 export default function PlanScreen() {
+  const fybeScroll = useFybeScroll('/plan');
   const { user, refreshUser, vinculo } = useAuth();
   const { colors: C } = usePremiumTheme();
   const { topPad } = useAppLayout();
@@ -63,10 +65,10 @@ export default function PlanScreen() {
     } catch { setFeedback('Não foi possível atualizar o diário agora. Tente novamente.'); }
   };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={[s.scroll, { paddingTop: topPad }]}>
+  return <ScrollView ref={fybeScroll} style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={[s.scroll, { paddingTop: topPad }]}>
     <Text accessibilityRole="header" style={[s.title, { color: C.text }]}>Plano alimentar</Text>
-    <FollowUpStatusCard />
-    <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
+    <FybeTarget id="plan.status"><FollowUpStatusCard /></FybeTarget>
+    <FybeTarget id="plan.current"><View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
       <Text accessibilityRole="header" style={[s.cardTitle, { color: C.text }]}>Plano atual</Text>
       {plan ? <>
         <Text style={{ color: C.textMuted, fontSize: 13, lineHeight: 19 }}>Toque em uma refeição para marcá-la como concluída. Ela entra no seu diário de hoje com as calorias informadas pelo nutricionista.</Text>
@@ -90,10 +92,11 @@ export default function PlanScreen() {
         {!!plan.notes && <InlineNotice tone="info" title="Orientações do nutricionista">{plan.notes}</InlineNotice>}
       </> : prescription ? prescription.split('\n').filter(Boolean).map(line => <Text key={line} style={[s.text, { color: C.textMuted }]}>• {line}</Text>)
         : <EmptyState icon="document-text-outline" title="Nenhum plano enviado ainda">{vinculo?.status === 'ativo' ? 'Seu nutricionista ainda não enviou um plano. Quando enviar, ele aparece aqui automaticamente.' : user?.nutricionistaId ? 'O plano fica disponível depois que o nutricionista aceitar sua solicitação.' : 'Com um nutricionista vinculado, você recebe aqui um plano alimentar personalizado.'}</EmptyState>}
-    </View>
+    </View></FybeTarget>
     {!!feedback && <InlineNotice tone="danger" live>{feedback}</InlineNotice>}
-    <AppButton variant="secondary" icon="fitness-outline" label="Registrar medidas" onPress={() => router.push('/nutri/tracking')} />
+    <FybeTarget id="plan.measures"><AppButton variant="secondary" icon="fitness-outline" label="Registrar medidas" onPress={() => router.push('/nutri/tracking')} /></FybeTarget>
     {vinculo?.status === 'ativo' && <AppButton variant="dangerOutline" icon="link-outline" label="Encerrar acompanhamento" accessibilityHint="Abre a avaliação do nutricionista antes de encerrar" onPress={() => router.push('/nutri/review')} />}
+    <FybeTourSpacer pathname="/plan" />
   </ScrollView>;
 }
 

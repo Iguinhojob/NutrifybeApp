@@ -5,13 +5,14 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { InlineNotice } from '@/components/ui-kit';
 import { FollowUpStatusCard } from '@/components/follow-up-status';
+import { FybeInlineButton, useFybeOptional } from '@/components/fybe';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain'];
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -27,6 +28,13 @@ export default function MessagesScreen() {
   const [error, setError] = useState('');
   const list = useRef<FlatList<ChatMessage>>(null);
   const linked = !!user?.id && vinculo?.status === 'ativo' && !!user.nutricionistaId;
+  // Na conversa, o botão flutuante do Fybe cobriria o campo de mensagem: ele vai para o cabeçalho.
+  const suppressFybe = useFybeOptional()?.setFloatingSuppressed;
+  useFocusEffect(useCallback(() => {
+    if (!linked || !suppressFybe) return;
+    suppressFybe(true);
+    return () => suppressFybe(false);
+  }, [linked, suppressFybe]));
 
   const refresh = useCallback(async () => {
     if (!linked) { setLoading(false); return; }
@@ -142,6 +150,7 @@ export default function MessagesScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${vinculo?.nutricionista.nome || 'nutricionista'}`} onPress={() => { if (vinculo?.nutricionista.id) router.push({ pathname: '/nutri/professional', params: { id: String(vinculo.nutricionista.id) } }); }} style={s.avatar}>{vinculo?.nutricionista.foto ? <Image source={{ uri: vinculo.nutricionista.foto }} style={s.avatarImage} /> : <Ionicons name="person" size={21} color={colors.primaryDark} />}</Pressable>
         <Pressable style={{ flex: 1 }} accessibilityRole="button" onPress={() => { if (vinculo?.nutricionista.id) router.push({ pathname: '/nutri/professional', params: { id: String(vinculo.nutricionista.id) } }); }}><Text style={s.title}>{vinculo?.nutricionista.nome || 'Nutricionista'}</Text><Text style={s.subtitle}>Ver perfil do nutricionista</Text></Pressable>
         <View style={s.onlineDot} /><Text style={s.secure}>Privado</Text>
+        <FybeInlineButton />
       </View>
       {loading ? <View style={s.loader}><ActivityIndicator color={colors.primary} /><Text style={s.subtitle}>Carregando conversa…</Text></View> :
         <FlatList ref={list} data={messages} keyExtractor={item => String(item.id)} renderItem={renderMessage} contentContainerStyle={s.list} onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })} ListEmptyComponent={<Text style={s.emptyText}>Envie uma mensagem para iniciar sua conversa.</Text>} />}
