@@ -104,7 +104,7 @@ export default function AboutYouScreen() {
           origin: d.origin, followupPreference: d.followupPreference, nutriCode: d.nutriCode,
         });
       } catch {
-        setError('NÃ£o foi possÃ­vel salvar as alteraÃ§Ãµes no servidor. Tente novamente.');
+        setError('Não foi possível salvar as alterações no servidor. Tente novamente.');
         return;
       }
       finishEditing();

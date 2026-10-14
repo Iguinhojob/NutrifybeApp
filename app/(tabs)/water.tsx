@@ -31,7 +31,7 @@ export default function WaterScreen() {
   const addPreset = async (amount: number) => {
     if (busy) return;
     setBusy(true);
-    try { await addWater(amount); } catch { Alert.alert('NÃ£o foi possÃ­vel salvar', 'Confira a conexÃ£o e tente novamente.'); } finally { setBusy(false); }
+    try { await addWater(amount); } catch { Alert.alert('Não foi possível salvar', 'Confira a conexão e tente novamente.'); } finally { setBusy(false); }
   };
 
   const saveCustom = async () => {
@@ -47,7 +47,7 @@ export default function WaterScreen() {
       setCustomError('');
       setCustomOpen(false);
     } catch {
-      Alert.alert('NÃ£o foi possÃ­vel salvar', 'Confira a conexÃ£o e tente novamente.');
+      Alert.alert('Não foi possível salvar', 'Confira a conexão e tente novamente.');
     } finally { setBusy(false); }
   };
 
@@ -58,7 +58,7 @@ export default function WaterScreen() {
       await removeWater(pendingDelete.id);
       setPendingDelete(null);
     } catch {
-      Alert.alert('NÃ£o foi possÃ­vel excluir', 'Confira a conexÃ£o e tente novamente.');
+      Alert.alert('Não foi possível excluir', 'Confira a conexão e tente novamente.');
     } finally { setBusy(false); }
   };
 
