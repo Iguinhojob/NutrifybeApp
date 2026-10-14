@@ -10,16 +10,18 @@ import Animated, { FadeIn, FadeInDown, useReducedMotion } from 'react-native-rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LaunchScreen() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, restoring } = useAuth();
   const { colors: C, isDark } = usePremiumTheme();
   const fonts = useBrandFonts();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
 
   useEffect(() => {
+    // Espera a conferência da sessão salva para não mandar para o login quem já estava conectado.
+    if (restoring) return;
     const timer = setTimeout(() => router.replace(isAuthenticated ? '/(tabs)' : '/auth/welcome'), reduce ? 250 : 1100);
     return () => clearTimeout(timer);
-  }, [isAuthenticated, reduce]);
+  }, [isAuthenticated, restoring, reduce]);
 
   return <View style={[s.screen, { backgroundColor: C.bg }]}>
     <LinearGradient colors={isDark ? ['#251D3B', '#13111A', '#13111A'] : ['#E5F8FB', '#F4FEFF', '#FFFFFF']} style={StyleSheet.absoluteFill} />

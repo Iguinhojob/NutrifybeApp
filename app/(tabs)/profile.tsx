@@ -3,8 +3,10 @@ import { usePremiumTheme } from '@/context/theme';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { FollowUpStatusCard } from '@/components/follow-up-status';
+import { useToast } from '@/components/ui-kit';
 
 const ACTIVITIES = ['Sedentário', 'Leve', 'Moderado', 'Intenso', 'Muito intenso'];
 const PREFERENCES = ['Nenhuma', 'Vegetariana', 'Vegana', 'Sem lactose', 'Sem glúten', 'Outras'];
@@ -19,6 +21,7 @@ export default function ProfileScreen() {
   const { user, updateUser, logout } = useAuth();
   const { colors, isDark, toggleTheme } = usePremiumTheme();
   const { topPad } = useAppLayout();
+  const toast = useToast();
   const [editing, setEditing]         = useState(false);
   const [saving, setSaving] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
@@ -32,14 +35,14 @@ export default function ProfileScreen() {
 
   const set = (key: string) => (val: string) => setForm(f => ({ ...f, [key]: val }));
   const save = async () => {
-    if (!form.name.trim()) return Alert.alert('Erro', 'Nome não pode ser vazio.');
+    if (!form.name.trim()) return toast.show({ tone: 'error', title: 'Informe seu nome', message: 'O nome não pode ficar vazio.' });
     setSaving(true);
     try {
       await updateUser(form);
       setEditing(false);
-      Alert.alert('Sucesso', 'Perfil atualizado!');
+      toast.show({ tone: 'success', title: 'Perfil atualizado', message: 'Seu nome foi salvo.' });
     } catch {
-      Alert.alert('Erro ao salvar', 'Não foi possível atualizar seu perfil no servidor. Tente novamente.');
+      toast.show({ tone: 'error', title: 'Não foi possível salvar', message: 'Confira sua conexão e tente novamente. Suas alterações continuam no formulário.' });
     } finally {
       setSaving(false);
     }
@@ -57,14 +60,14 @@ export default function ProfileScreen() {
     return { ...prev, restrictions: current.includes(label) ? current.filter(item => item !== label) : [...current, label] };
   });
   const saveNutritionProfile = async () => {
-    if (!nutritionForm.activityLevel || !nutritionForm.motivation || !nutritionForm.restrictions.length) return Alert.alert('Confira as respostas', 'Preencha atividade diária, seu momento e preferências alimentares.');
+    if (!nutritionForm.activityLevel || !nutritionForm.motivation || !nutritionForm.restrictions.length) return toast.show({ tone: 'error', title: 'Confira as respostas', message: 'Preencha atividade diária, seu momento e preferências alimentares.' });
     setSaving(true);
     try {
       await updateUser({ activityLevel: nutritionForm.activityLevel, motivation: nutritionForm.motivation, restrictions: nutritionForm.restrictions.join(', ') });
       setNutritionModal(false);
-      Alert.alert('Perfil atualizado', 'Suas informações nutricionais foram alteradas.');
+      toast.show({ tone: 'success', title: 'Perfil nutricional atualizado', message: 'Suas informações foram salvas.' });
     } catch {
-      Alert.alert('Erro ao salvar', 'Não foi possível atualizar suas informações no servidor. Tente novamente.');
+      toast.show({ tone: 'error', title: 'Não foi possível salvar', message: 'Confira sua conexão e tente novamente.' });
     } finally {
       setSaving(false);
     }
@@ -93,7 +96,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={[s.card, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
-          <View style={s.cardHeader}><Text style={[s.cardTitle, { color: colors.text }]}>Seu perfil nutricional</Text><TouchableOpacity onPress={editNutritionProfile}><Text style={[s.editBtn, { color: colors.primary }]}>Editar</Text></TouchableOpacity></View>
+          <View style={s.cardHeader}><Text style={[s.cardTitle, { color: colors.text }]}>Seu perfil nutricional</Text><TouchableOpacity onPress={editNutritionProfile}><Text style={[s.editBtn, { color: colors.primaryText }]}>Editar</Text></TouchableOpacity></View>
           {[
             ['Atividade diária', user?.activityLevel], ['Seu momento', user?.motivation], ['Preferências alimentares', user?.restrictions],
           ].filter(([, value]) => !!value).map(([label, value]) => (
@@ -104,12 +107,32 @@ export default function ProfileScreen() {
           ))}
         </View>
 
+        <FollowUpStatusCard />
+
+        {/* Ferramentas que saíram da barra inferior continuam a um toque daqui */}
+        <View style={[s.menu, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
+          <Text accessibilityRole="header" style={[s.cardTitle, { color: colors.text, paddingHorizontal: 16, paddingTop: 16 }]}>Mais ferramentas</Text>
+          {[
+            { icon: 'time-outline' as const, label: 'Histórico alimentar', hint: 'Refeições de dias anteriores', route: '/(tabs)/history' },
+            { icon: 'water-outline' as const, label: 'Água', hint: 'Registrar e acompanhar hidratação', route: '/(tabs)/water' },
+            { icon: 'fitness-outline' as const, label: 'Medidas', hint: 'Peso, cintura, quadril e mais', route: '/nutri/tracking' },
+            { icon: 'body-outline' as const, label: 'Calculadora de IMC', hint: 'Índice de massa corporal', route: '/(tabs)/bmi' },
+            { icon: 'notifications-outline' as const, label: 'Notificações', hint: 'Avisos desta sessão', route: '/notifications' },
+          ].map((item, i, list) => (
+            <TouchableOpacity key={item.label} accessibilityRole="button" accessibilityLabel={item.label} accessibilityHint={item.hint} style={[s.menuItem, i < list.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]} onPress={() => router.push(item.route as any)}>
+              <View style={[s.menuIconWrap, { backgroundColor: colors.surface2 }]}><Ionicons name={item.icon} size={18} color={colors.primaryText} /></View>
+              <View style={{ flex: 1 }}><Text style={[s.menuLabel, { color: colors.text }]}>{item.label}</Text><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{item.hint}</Text></View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* Dados pessoais */}
         <View style={[s.card, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
           <View style={s.cardHeader}>
             <Text style={[s.cardTitle, { color: colors.text }]}>Dados Pessoais</Text>
             <TouchableOpacity onPress={editing ? cancelEdit : () => setEditing(true)}>
-              <Text style={[s.editBtn, { color: colors.primary }]}>{editing ? 'Cancelar' : 'Editar'}</Text>
+              <Text style={[s.editBtn, { color: colors.primaryText }]}>{editing ? 'Cancelar' : 'Editar'}</Text>
             </TouchableOpacity>
           </View>
           <View style={[s.field, { borderBottomColor: colors.border }]}>
@@ -128,9 +151,9 @@ export default function ProfileScreen() {
         {/* Menu */}
         <View style={[s.menu, { backgroundColor: colors.surface, shadowColor: '#000' }]}>
           {menuItems.map((item, i) => (
-            <TouchableOpacity key={i} style={[s.menuItem, i < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]} onPress={item.onPress}>
+            <TouchableOpacity key={i} accessibilityRole="button" style={[s.menuItem, i < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]} onPress={item.onPress}>
               <View style={[s.menuIconWrap, { backgroundColor: item.danger ? colors.danger + '20' : colors.surface2 }]}>
-                <Ionicons name={item.icon} size={18} color={item.danger ? colors.danger : colors.primary} />
+                <Ionicons name={item.icon} size={18} color={item.danger ? colors.danger : colors.primaryText} />
               </View>
               <Text style={[s.menuLabel, { color: item.danger ? colors.danger : colors.text }]}>{item.label}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
@@ -138,14 +161,14 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        <Modal visible={logoutModal} transparent animationType="fade">
+        <Modal visible={logoutModal} transparent animationType="fade" onRequestClose={() => setLogoutModal(false)}>
           <View style={s.overlay}>
             <View style={[s.modalBox, { backgroundColor: colors.surface }]}>
               <Text style={[s.modalTitle, { color: colors.text }]}>Sair da Conta</Text>
-              <Text style={[s.modalText, { color: colors.textMuted }]}>Tem certeza que deseja sair?</Text>
+              <Text style={[s.modalText, { color: colors.textMuted }]}>Você precisará entrar com e-mail e senha para voltar. Seus registros continuam salvos.</Text>
               <View style={s.modalButtons}>
                 <TouchableOpacity style={[s.modalBtnNo, { borderColor: colors.border }]} onPress={() => setLogoutModal(false)}>
-                  <Text style={[s.modalBtnNoText, { color: colors.text }]}>Não</Text>
+                  <Text style={[s.modalBtnNoText, { color: colors.text }]}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.modalBtnYes, { backgroundColor: colors.danger }]} onPress={handleLogout}>
                   <Text style={s.modalBtnYesText}>Sair</Text>
@@ -155,16 +178,16 @@ export default function ProfileScreen() {
           </View>
         </Modal>
 
-        <Modal visible={nutritionModal} animationType="slide" presentationStyle="pageSheet">
+        <Modal visible={nutritionModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setNutritionModal(false)}>
           <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 24, paddingBottom: 50 }}>
             <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>Editar perfil nutricional</Text>
             <Text style={{ color: colors.textMuted, marginTop: 5, marginBottom: 20 }}>Altere somente as informações exibidas neste cartão.</Text>
             <Text style={[s.optionTitle, { color: colors.textMuted }]}>ATIVIDADE DIÁRIA</Text>
-            {ACTIVITIES.map(label => <TouchableOpacity key={label} onPress={() => setNutritionForm(prev => ({ ...prev, activityLevel: label }))} style={[s.option, { borderColor: nutritionForm.activityLevel === label ? colors.primary : colors.border, backgroundColor: nutritionForm.activityLevel === label ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.activityLevel === label ? colors.primary : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
+            {ACTIVITIES.map(label => <TouchableOpacity key={label} onPress={() => setNutritionForm(prev => ({ ...prev, activityLevel: label }))} style={[s.option, { borderColor: nutritionForm.activityLevel === label ? colors.primary : colors.border, backgroundColor: nutritionForm.activityLevel === label ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.activityLevel === label ? colors.primaryText : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
             <Text style={[s.optionTitle, { color: colors.textMuted, marginTop: 16 }]}>SEU MOMENTO</Text>
-            {(MOMENTS[user?.goal || ''] ?? MOMENTS['Melhorar saúde']).map(label => <TouchableOpacity key={label} onPress={() => setNutritionForm(prev => ({ ...prev, motivation: label }))} style={[s.option, { borderColor: nutritionForm.motivation === label ? colors.primary : colors.border, backgroundColor: nutritionForm.motivation === label ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.motivation === label ? colors.primary : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
+            {(MOMENTS[user?.goal || ''] ?? MOMENTS['Melhorar saúde']).map(label => <TouchableOpacity key={label} onPress={() => setNutritionForm(prev => ({ ...prev, motivation: label }))} style={[s.option, { borderColor: nutritionForm.motivation === label ? colors.primary : colors.border, backgroundColor: nutritionForm.motivation === label ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.motivation === label ? colors.primaryText : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
             <Text style={[s.optionTitle, { color: colors.textMuted, marginTop: 16 }]}>PREFERÊNCIAS ALIMENTARES</Text>
-            {PREFERENCES.map(label => <TouchableOpacity key={label} onPress={() => togglePreference(label)} style={[s.option, { borderColor: nutritionForm.restrictions.includes(label) ? colors.primary : colors.border, backgroundColor: nutritionForm.restrictions.includes(label) ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.restrictions.includes(label) ? colors.primary : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
+            {PREFERENCES.map(label => <TouchableOpacity key={label} onPress={() => togglePreference(label)} style={[s.option, { borderColor: nutritionForm.restrictions.includes(label) ? colors.primary : colors.border, backgroundColor: nutritionForm.restrictions.includes(label) ? colors.primarySoft : colors.surface }]}><Text style={{ color: nutritionForm.restrictions.includes(label) ? colors.primaryText : colors.text, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
             <TouchableOpacity onPress={saveNutritionProfile} disabled={saving} style={[s.saveBtn, { backgroundColor: colors.primary, marginTop: 22 }]}><Text style={s.saveBtnText}>{saving ? 'Salvando…' : 'Salvar alterações'}</Text></TouchableOpacity>
             <TouchableOpacity onPress={() => setNutritionModal(false)} style={{ padding: 15, alignItems: 'center' }}><Text style={{ color: colors.textMuted, fontWeight: '700' }}>Cancelar</Text></TouchableOpacity>
           </ScrollView>
@@ -177,7 +200,7 @@ export default function ProfileScreen() {
 }
 
 const s = StyleSheet.create({
-  scroll:          { padding: 20, gap: 14 },
+  scroll:          { padding: 20, gap: 14, width: '100%', maxWidth: 720, alignSelf: 'center' },
   avatarSection:   { alignItems: 'center', gap: 6, marginBottom: 4 },
   avatar:          { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   avatarText:      { fontSize: 32, fontWeight: '900', color: '#fff' },
@@ -200,7 +223,7 @@ const s = StyleSheet.create({
   saveBtn:         { borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 14 },
   saveBtnText:     { fontSize: 15, fontWeight: '800', color: '#fff' },
   menu:            { borderRadius: 20, overflow: 'hidden', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
-  menuItem:        { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
+  menuItem:        { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, minHeight: 56 },
   menuIconWrap:    { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   menuLabel:       { flex: 1, fontSize: 15, fontWeight: '600' },
   overlay:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },

@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppButton, EmptyState, InlineNotice, StatusPill, useToast } from '@/components/ui-kit';
+import { FollowUpStatusCard } from '@/components/follow-up-status';
 import { useAuth } from '@/context/auth';
 import { useDiary } from '@/context/diary';
 import { usePremiumTheme } from '@/context/theme';
@@ -20,6 +22,7 @@ export default function PlanScreen() {
   const { allMeals, addMeal, removeMeal } = useDiary();
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [feedback, setFeedback] = useState('');
+  const toast = useToast();
   const prescription = user?.prescricaoSemanal?.trim();
   const storageKey = user && prescription ? keyFor(user.id, prescription) : null;
   const plan = useMemo<Plan | null>(() => {
@@ -54,19 +57,43 @@ export default function PlanScreen() {
       await AsyncStorage.setItem(storageKey, JSON.stringify(next));
       setDone(next);
       setFeedback('');
+      toast.show(next[index]
+        ? { tone: 'success', title: 'Refeição concluída', message: `${meal.nome || `Refeição ${index + 1}`} foi adicionada ao diário de hoje.` }
+        : { tone: 'info', title: 'Marcação desfeita', message: 'A refeição saiu do diário de hoje.' });
     } catch { setFeedback('Não foi possível atualizar o diário agora. Tente novamente.'); }
   };
 
   return <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={[s.scroll, { paddingTop: topPad }]}>
-    <Text style={[s.title, { color: C.text }]}>Plano alimentar</Text>
-    {vinculo?.nutricionista ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${vinculo.nutricionista.nome}`} onPress={() => router.push({ pathname: '/nutri/professional', params: { id: String(vinculo.nutricionista.id) } })} style={[s.hero, { backgroundColor: C.primary }]}>{vinculo.nutricionista.foto ? <Image source={{ uri: vinculo.nutricionista.foto }} style={s.nutriPhoto} /> : <View style={s.nutriPhotoFallback}><Ionicons name="person" size={23} color={C.primary} /></View>}<View style={{ flex: 1 }}><Text style={s.heroTitle}>{vinculo.nutricionista.nome}</Text><Text style={s.heroText}>{vinculo.nutricionista.especialidade || 'Acompanhamento nutricional'} · {vinculo.status === 'ativo' ? 'Vínculo ativo' : 'Aguardando confirmação'}</Text></View><Ionicons name="chevron-forward" size={19} color="#fff" /></TouchableOpacity> : user?.nutricionistaId ? <View style={[s.notice, { backgroundColor: C.primarySoft, borderColor: C.border }]}><Ionicons name="time-outline" size={22} color={C.primary} /><Text style={{ color: C.textMuted, flex: 1 }}>Seu vínculo está aguardando confirmação do nutricionista.</Text></View> : <View style={[s.notice, { backgroundColor: C.primarySoft, borderColor: C.border }]}><Ionicons name="nutrition-outline" size={22} color={C.primary} /><Text style={{ color: C.textMuted, flex: 1 }}>Vincule um nutricionista para receber seu plano alimentar.</Text></View>}
+    <Text accessibilityRole="header" style={[s.title, { color: C.text }]}>Plano alimentar</Text>
+    <FollowUpStatusCard />
     <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
-      <Text style={[s.cardTitle, { color: C.text }]}>Plano atual</Text>
-      {plan ? <>{plan.meals.map((meal, index) => <TouchableOpacity key={`${meal.nome}-${index}`} onPress={() => void toggle(index)} style={[s.meal, { backgroundColor: C.surface2, borderColor: done[index] ? C.primary : C.border }]}><Ionicons name={done[index] ? 'checkbox' : 'square-outline'} size={23} color={done[index] ? C.primary : C.textDim} /><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: '900' }}>{meal.horario ? `${meal.horario} · ` : ''}{meal.nome || `Refeição ${index + 1}`}</Text>{!!meal.alimentos && <Text style={[s.text, { color: C.textMuted }]}>{meal.alimentos}</Text>}{!!meal.porcao && <Text style={[s.small, { color: C.textMuted }]}>Porção: {meal.porcao}</Text>}{meal.calorias != null && <Text style={[s.small, { color: C.primary }]}>{meal.calorias} kcal · entra na meta diária ao concluir</Text>}<Text style={[s.small, { color: done[index] ? C.primary : C.textDim }]}>{done[index] ? 'Concluída' : 'Toque para marcar como concluída'}</Text></View></TouchableOpacity>)}</> : prescription ? prescription.split('\n').filter(Boolean).map(line => <Text key={line} style={[s.text, { color: C.textMuted }]}>• {line}</Text>) : <View style={s.empty}><Ionicons name="document-text-outline" size={42} color={C.textDim} /><Text style={{ color: C.text, fontWeight: '900', fontSize: 17 }}>Nenhum plano enviado</Text><Text style={[s.text, { color: C.textMuted, textAlign: 'center' }]}>{user?.nutricionistaId ? 'Seu nutricionista ainda não enviou um plano alimentar.' : 'Solicite o acompanhamento de um nutricionista para receber um plano.'}</Text>{!user?.nutricionistaId && <TouchableOpacity onPress={() => router.push('/nutri/request')} style={[s.button, { backgroundColor: C.primary }]}><Text style={{ color: '#fff', fontWeight: '900' }}>Vincular nutricionista</Text></TouchableOpacity>}</View>}
+      <Text accessibilityRole="header" style={[s.cardTitle, { color: C.text }]}>Plano atual</Text>
+      {plan ? <>
+        <Text style={{ color: C.textMuted, fontSize: 13, lineHeight: 19 }}>Toque em uma refeição para marcá-la como concluída. Ela entra no seu diário de hoje com as calorias informadas pelo nutricionista.</Text>
+        {plan.meals.map((meal, index) => {
+          const checked = !!done[index];
+          const hasCalories = meal.calorias != null && meal.calorias !== '';
+          return <Pressable key={`${meal.nome}-${index}`} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={`${meal.horario ? `${meal.horario}, ` : ''}${meal.nome || `Refeição ${index + 1}`}${hasCalories ? `, ${meal.calorias} quilocalorias` : ''}`} accessibilityHint={checked ? 'Toque para desmarcar e retirar do diário' : 'Toque para marcar como concluída e adicionar ao diário'} onPress={() => void toggle(index)} style={[s.meal, { backgroundColor: checked ? C.primarySoft : C.surface2, borderColor: checked ? C.primaryText : C.border }]}>
+            <Ionicons name={checked ? 'checkbox' : 'square-outline'} size={24} color={checked ? C.primaryText : C.textMuted} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: C.text, fontWeight: '900', fontSize: 15 }}>{meal.horario ? `${meal.horario} · ` : ''}{meal.nome || `Refeição ${index + 1}`}</Text>
+              {!!meal.alimentos && <Text style={[s.text, { color: C.textMuted }]}>{meal.alimentos}</Text>}
+              {!!meal.porcao && <Text style={[s.small, { color: C.text }]}>Porção: {meal.porcao}</Text>}
+              {!!meal.observacao && <Text style={[s.small, { color: C.textMuted }]}>Substituição: {meal.observacao}</Text>}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                {hasCalories ? <StatusPill tone="info" icon="flame-outline" label={`${meal.calorias} kcal`} /> : <StatusPill tone="warning" icon="alert-circle-outline" label="Sem calorias informadas" />}
+                <StatusPill tone={checked ? 'success' : 'neutral'} icon={checked ? 'checkmark-circle' : 'ellipse-outline'} label={checked ? 'Concluída hoje' : 'Pendente'} />
+              </View>
+            </View>
+          </Pressable>;
+        })}
+        {!!plan.notes && <InlineNotice tone="info" title="Orientações do nutricionista">{plan.notes}</InlineNotice>}
+      </> : prescription ? prescription.split('\n').filter(Boolean).map(line => <Text key={line} style={[s.text, { color: C.textMuted }]}>• {line}</Text>)
+        : <EmptyState icon="document-text-outline" title="Nenhum plano enviado ainda">{vinculo?.status === 'ativo' ? 'Seu nutricionista ainda não enviou um plano. Quando enviar, ele aparece aqui automaticamente.' : user?.nutricionistaId ? 'O plano fica disponível depois que o nutricionista aceitar sua solicitação.' : 'Com um nutricionista vinculado, você recebe aqui um plano alimentar personalizado.'}</EmptyState>}
     </View>
-    {!!feedback && <Text accessibilityRole="alert" style={{ color: C.danger }}>{feedback}</Text>}
-    {vinculo?.status === 'ativo' && <TouchableOpacity onPress={() => router.push('/nutri/review')} style={[s.secondary, { backgroundColor: C.surface, borderColor: C.border }]}><Ionicons name="link-outline" size={18} color={C.danger} /><Text style={{ color: C.danger, fontWeight: '800' }}>Encerrar vínculo</Text></TouchableOpacity>}
-    <TouchableOpacity onPress={() => router.push('/nutri/tracking')} style={[s.secondary, { backgroundColor: C.surface, borderColor: C.border }]}><Ionicons name="fitness-outline" size={18} color={C.primary} /><Text style={{ color: C.text, fontWeight: '800' }}>Registrar medidas</Text></TouchableOpacity>
+    {!!feedback && <InlineNotice tone="danger" live>{feedback}</InlineNotice>}
+    <AppButton variant="secondary" icon="fitness-outline" label="Registrar medidas" onPress={() => router.push('/nutri/tracking')} />
+    {vinculo?.status === 'ativo' && <AppButton variant="dangerOutline" icon="link-outline" label="Encerrar acompanhamento" accessibilityHint="Abre a avaliação do nutricionista antes de encerrar" onPress={() => router.push('/nutri/review')} />}
   </ScrollView>;
 }
 

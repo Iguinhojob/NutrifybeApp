@@ -10,6 +10,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { InlineNotice } from '@/components/ui-kit';
+import { FollowUpStatusCard } from '@/components/follow-up-status';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain'];
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -124,10 +126,13 @@ export default function MessagesScreen() {
     </View>;
   };
 
-  if (!linked) return <SafeAreaView style={[s.page, { justifyContent: 'center', padding: 28 }]}>
-    <View style={s.emptyCard}><Ionicons name="chatbubbles-outline" size={42} color={colors.primary} />
-      <Text style={s.title}>Chat com nutricionista</Text>
-      <Text style={s.subtitle}>{vinculo?.status === 'pendente' ? 'O chat será liberado quando o nutricionista aceitar seu vínculo.' : 'Vincule um nutricionista ao seu perfil para conversar por aqui.'}</Text>
+  if (!linked) return <SafeAreaView style={[s.page, { padding: 20 }]}>
+    <View style={{ gap: 14, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
+      <Text accessibilityRole="header" style={[s.title, { fontSize: 26 }]}>Chat</Text>
+      <InlineNotice tone={vinculo?.status === 'pendente' || user?.nutricionistaId ? 'warning' : 'info'} icon="chatbubbles-outline" title="Conversa disponível apenas com acompanhamento ativo">
+        {vinculo?.status === 'pendente' || user?.nutricionistaId ? 'O chat é liberado assim que o nutricionista aceitar sua solicitação.' : 'Quando um nutricionista aceitar acompanhar você, a conversa acontece por aqui.'}
+      </InlineNotice>
+      <FollowUpStatusCard />
     </View>
   </SafeAreaView>;
 

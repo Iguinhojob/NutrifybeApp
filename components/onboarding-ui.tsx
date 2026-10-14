@@ -51,7 +51,7 @@ export function PrimaryButton({ label, onPress, disabled, busy }: { label: strin
   const { isDark } = usePremiumTheme();
   const fonts = useBrandFonts();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled || !!busy, busy: !!busy }} disabled={disabled || busy} onPress={onPress} style={({ pressed }) => ({ opacity: disabled || busy ? 0.5 : pressed ? 0.8 : 1 })}>
-    <LinearGradient colors={isDark ? ['#7C3AED', '#4D1E97'] : ['#0094AC', '#007F95']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.button}>
+    <LinearGradient colors={isDark ? ['#7C3AED', '#4D1E97'] : ['#0E7490', '#155E75']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.button}>
       <Text style={[styles.buttonText, { fontFamily: fonts.semibold }]}>{label}</Text>
       {busy && <ActivityIndicator color="#fff" />}
     </LinearGradient>

@@ -1,21 +1,31 @@
-# Nutrifybe
+# Nutrifybe — app do paciente
 
-App mobile feito com Expo e API em Spring Boot conectada ao SQL Server do Somee.
+App mobile do Nutrifybe feito com **React Native + Expo (SDK 54)** e **Expo Router**. O paciente registra refeições (tabela TACO), água e medidas, encontra um nutricionista, envia a solicitação de acompanhamento, recebe o plano alimentar e conversa pelo chat.
 
-## Mobile
+A API e o site do nutricionista e do administrador ficam no repositório **TCC** (`api-java/` e `src/`). O app só se comunica com essa API, nunca diretamente com o banco de dados.
 
+## Como rodar
 1. Copie `.env.example` para `.env`.
-2. Configure `EXPO_PUBLIC_API_URL` com o endereço da API.
-3. Execute `npm install` e `npm start`.
+2. Em `EXPO_PUBLIC_API_URL`, informe o endereço da API:
+   - emulador Android: `http://10.0.2.2:8080`;
+   - celular físico: o IP local do computador, por exemplo `http://192.168.0.10:8080`;
+   - produção: a URL HTTPS pública da API.
+3. Rode `npm install` e depois `npm start`.
 
-Para Android Emulator, use `http://10.0.2.2:8080`. Para um celular físico, informe o IP local do computador durante o desenvolvimento. Em produção, configure uma URL HTTPS pública.
+O modo de demonstração (`EXPO_PUBLIC_DEMO_MODE=true`) usa perfis locais e não envia nada ao servidor. Deixe `false` para usar a API.
 
-O modo de demonstração fica desligado por padrão. Para habilitá-lo localmente, use `EXPO_PUBLIC_DEMO_MODE=true`; no modo conectado, deixe-o como `false`.
+> Variáveis `EXPO_PUBLIC_*` ficam visíveis dentro do app. Nunca coloque senhas ou chaves nelas.
 
-## API e SQL Server
+## Sessão
+O token de acesso fica guardado no armazenamento seguro do aparelho (`expo-secure-store`). Assim, o paciente continua conectado ao reabrir o app. Ao tocar em "Sair", o token é apagado. Na versão web, o token fica no armazenamento do navegador.
 
-A API está em [backend](./backend/README.md). Ela guarda contas, metas, solicitações de vínculo, refeições e consumo de água nas tabelas `app_*`, sem alterar as tabelas legadas. As senhas são armazenadas com PBKDF2; o mobile recebe um token JWT e nunca acessa o SQL Server diretamente.
+## Estrutura
+- `app/(tabs)`: Início (resumo do dia e diário), Plano, Chat, Evolução e Perfil, além de Histórico, Água e IMC, abertos pelos atalhos.
+- `app/nutri`: busca de nutricionistas, perfil do profissional, solicitação, avaliação e medidas.
+- `app/auth`: boas-vindas, cadastro em etapas, login e recuperação de senha.
+- `components/ui-kit.tsx`: botões, cartões, avisos e estados de carregamento, vazio e erro compartilhados.
+- `components/follow-up-status.tsx`: estado do acompanhamento (modo solo, aguardando resposta ou ativo).
+- `context/`: autenticação, diário, tema e cadastro.
+- `services/api.ts`: chamadas à API.
 
-Configure `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` e `ADMIN_API_KEY` como variáveis de ambiente no provedor da API. Não coloque credenciais reais em arquivos versionáveis nem em variáveis `EXPO_PUBLIC_*`. O Somee fornece o SQL Server, mas a API Java precisa ser publicada separadamente num serviço que execute Java 21/containers.
-
-As credenciais do SQL Server compartilhadas na conversa devem ser trocadas no painel do Somee antes da publicação. O backend não contém a senha enviada.
+Os detalhes das mudanças de interface e as limitações conhecidas estão em `docs/melhorias-interface.md`.

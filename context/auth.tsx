@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { clearSessionToken, loadSessionToken, saveSessionToken } from '@/services/session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEMO_MODE, findDemoNutritionistById, findNutritionist } from '@/services/demo';
 import { ageFromBirthDate, isValidEmail, isValidPassword, measurementError } from '@/utils/onboarding';
@@ -49,6 +50,8 @@ export type Notificacao = {
 type AuthContextType = {
   user: User | null;
   isAuthenticated: boolean;
+  /** Verdadeiro enquanto o app confere se há uma sessão salva de um uso anterior. */
+  restoring: boolean;
   vinculo: Vinculo | null;
   notificacoes: Notificacao[];
   loading: boolean;
@@ -124,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  const [restoring, setRestoring]     = useState(!DEMO_MODE);
   const demoProfiles = useRef(new Map<string, LocalProfile>());
   const loadLocalProfiles = async () => {
     const raw = await AsyncStorage.getItem(LOCAL_PROFILES_KEY);
@@ -132,6 +136,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     demoProfiles.current = new Map(profiles.map(profile => [profile.email.toLowerCase(), profile]));
   };
   const saveLocalProfiles = () => AsyncStorage.setItem(LOCAL_PROFILES_KEY, JSON.stringify([...demoProfiles.current.values()]));
+
+  // ── Restaurar sessão salva ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    let active = true;
+    (async () => {
+      const token = await loadSessionToken();
+      if (!token) return;
+      setAccessToken(token);
+      try {
+        const paciente = await PacientesAPI.getMe();
+        if (!active) return;
+        setUser(pacienteToUser(paciente));
+        if (paciente.nutricionistaId) {
+          try {
+            const nutri = await NutricionistasAPI.getById(paciente.nutricionistaId);
+            if (active) setVinculo({ nutricionista: nutri, status: paciente.status === 'accepted' ? 'ativo' : 'pendente' });
+          } catch {
+            // O perfil continua carregado mesmo sem os dados públicos do nutricionista.
+          }
+        }
+      } catch (e: any) {
+        setAccessToken(null);
+        // Token vencido ou inválido: descarta. Falha de rede: mantém para tentar na próxima abertura.
+        if (/sess[aã]o expirou|401/i.test(e?.message ?? '')) await clearSessionToken();
+      }
+    })().finally(() => { if (active) setRestoring(false); });
+    return () => { active = false; };
+  }, []);
 
   // ── Login ──────────────────────────────────────────────────────────────────
   const login = async (email: string, senha: string): Promise<boolean> => {
@@ -155,6 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setAccessToken(resposta.token);
+      void saveSessionToken(resposta.token);
       const paciente = resposta.paciente;
       const u = pacienteToUser(paciente);
       setUser(u);
@@ -236,6 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         nutricionistaId: data.nutricionistaId,
       });
       setAccessToken(resposta.token);
+      void saveSessionToken(resposta.token);
       const paciente = resposta.paciente;
       setUser(pacienteToUser(paciente));
       setVinculo(null);
@@ -310,6 +345,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setAccessToken(null);
+    void clearSessionToken();
     setUser(null);
     setVinculo(null);
     setNotificacoes([]);
@@ -340,7 +376,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const paciente = await PacientesAPI.updateMe(payload);
         updated = pacienteToUser(paciente);
       } catch (e: any) {
-        setError(e.message || 'NÃ£o foi possÃ­vel salvar seu perfil.');
+        setError(e.message || 'Não foi possível salvar seu perfil.');
         throw e;
       } finally {
         setLoading(false);
@@ -386,7 +422,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, isAuthenticated: !!user,
+      user, isAuthenticated: !!user, restoring,
       vinculo, notificacoes,
       loading, error,
       login, register, logout, updateUser, refreshUser,
