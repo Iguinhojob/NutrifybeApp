@@ -13,9 +13,9 @@
     },
     "android": {
       "adaptiveIcon": {
-      "backgroundColor": "#00BCD4",
-      "foregroundImage": "./assets/images/app-icon-1024.png",
-      "monochromeImage": "./assets/images/icone-roxo.png"
+        "backgroundColor": "#00BCD4",
+        "foregroundImage": "./assets/images/app-icon-1024.png",
+        "monochromeImage": "./assets/images/icone-roxo.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -39,7 +39,8 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

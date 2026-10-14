@@ -8,10 +8,15 @@ export const lightPremium = {
 
   text:      '#0A1F22',
   textMuted: '#4A7A80',
-  textDim:   '#90B8BC',
+  textDim:   '#5B868C',
 
-  primary:      '#00BCD4',
-  primaryDark:  '#0094AC',
+  // Ciano da marca escurecido para manter contraste AA com texto branco (5,4:1).
+  // O ciano original (#00BCD4) segue disponível em `brand` para detalhes decorativos.
+  primary:      '#0E7490',
+  primaryDark:  '#155E75',
+  primaryText:  '#0E7490',
+  onPrimary:    '#FFFFFF',
+  brand:        '#00BCD4',
   primaryLight: '#B2EBF2',
   primarySoft:  'rgba(0,188,212,0.10)',
 
@@ -23,12 +28,12 @@ export const lightPremium = {
   accent:     '#8b5cf6',
   accentSoft: 'rgba(139,92,246,0.10)',
 
-  success:     '#10b981',
+  success:     '#047857',
   successSoft: 'rgba(16,185,129,0.12)',
-  warning:     '#f59e0b',
+  warning:     '#B45309',
   warningSoft: 'rgba(245,158,11,0.12)',
   yellowLight: '#FEF9C3',
-  danger:      '#ef4444',
+  danger:      '#DC2626',
   dangerSoft:  'rgba(239,68,68,0.12)',
   dangerLight: '#FEE2E2',
   green:       '#10b981',
@@ -38,10 +43,10 @@ export const lightPremium = {
 
   navBg:          'rgba(255,255,255,0.97)',
   tabBar:         'rgba(255,255,255,0.97)',
-  tabBarActive:   '#00BCD4',
-  tabBarInactive: '#90B8BC',
-  navActive:      '#00BCD4',
-  navInactive:    '#90B8BC',
+  tabBarActive:   '#0E7490',
+  tabBarInactive: '#4A7A80',
+  navActive:      '#0E7490',
+  navInactive:    '#4A7A80',
   navBorder:      '#B2EBF2',
 
   bubbleMe:        'rgba(0,188,212,0.12)',
@@ -60,12 +65,12 @@ export const lightPremium = {
   purpleSoft:       'rgba(139,92,246,0.10)',
   purpleAccent:     '#8b5cf6',
   purpleCard:       'rgba(139,92,246,0.06)',
-  ctaContrastBg:    '#00BCD4',
+  ctaContrastBg:    '#0E7490',
   ctaContrastText:  '#FFFFFF',
   gold:             '#f59e0b',
   textSecondary:    '#4A7A80',
   white:            '#FFFFFF',
-  primaryDarkColor: '#0094AC',
+  primaryDarkColor: '#155E75',
   icon:             '#4A7A80',
 };
 
@@ -79,12 +84,15 @@ export const darkPremium = {
 
   text:      '#F0ECFF',
   textMuted: '#9B8FC0',
-  textDim:   '#5A5278',
+  textDim:   '#8A80AE',
 
   primary:      '#7C3AED',
   primaryDark:  '#4D1E97',
   primaryLight: '#A879FF',
   primarySoft:  'rgba(124,58,237,0.15)',
+  primaryText:  '#C4B5FD',
+  onPrimary:    '#FFFFFF',
+  brand:        '#A879FF',
 
   secondary:     '#22d3ee',
   secondaryDark: '#06b6d4',
@@ -109,10 +117,10 @@ export const darkPremium = {
 
   navBg:          'rgba(19,17,26,0.97)',
   tabBar:         'rgba(19,17,26,0.97)',
-  tabBarActive:   '#A879FF',
-  tabBarInactive: '#3D3A52',
-  navActive:      '#A879FF',
-  navInactive:    '#3D3A52',
+  tabBarActive:   '#C4B5FD',
+  tabBarInactive: '#9B8FC0',
+  navActive:      '#C4B5FD',
+  navInactive:    '#9B8FC0',
   navBorder:      '#1E1B2E',
 
   bubbleMe:        'rgba(147,51,234,0.18)',

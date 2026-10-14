@@ -1,33 +1,24 @@
+import { AppButton, InlineNotice } from '@/components/ui-kit';
+import { useFollowUp } from '@/components/follow-up-status';
 import { usePremiumTheme } from '@/context/theme';
-import { useAuth } from '@/context/auth';
-import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router } from 'expo-router';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 
 export default function RequestScreen() {
   const { colors } = usePremiumTheme();
-  const { user } = useAuth();
-  if (user?.nutricionistaId) return <Redirect href="/(tabs)/plan" />;
+  const { state } = useFollowUp();
+  if (state !== 'solo') return <Redirect href="/(tabs)/plan" />;
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
-      <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, textAlign: 'center' }}>Vincular nutricionista</Text>
-      <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 21 }}>
-        Conecte-se com alguém que você já conhece ou explore os profissionais disponíveis.
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 24, gap: 16, width: '100%', maxWidth: 560, alignSelf: 'center' }}>
+      <Text accessibilityRole="header" style={{ fontSize: 22, fontWeight: '900', color: colors.text }}>Acompanhamento com nutricionista</Text>
+      <Text style={{ fontSize: 15, color: colors.textMuted, lineHeight: 22 }}>
+        Escolha um profissional disponível ou informe o ID de alguém que você já conhece. Você envia uma solicitação e o nutricionista decide se aceita.
       </Text>
-      <TouchableOpacity
-        style={{ width: '100%', backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 }}
-        onPress={() => router.push('/auth/nutri-code')}
-      >
-        <Ionicons name="key-outline" size={19} color="#fff" />
-        <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Tenho o ID do nutricionista</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={{ width: '100%', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 }}
-        onPress={() => router.push('/nutri/directory')}
-      >
-        <Ionicons name="search-outline" size={19} color={colors.primary} />
-        <Text style={{ fontSize: 15, fontWeight: '700', color: colors.primary }}>Ver nutricionistas disponíveis</Text>
-      </TouchableOpacity>
-    </View>
+      <AppButton size="lg" icon="search-outline" label="Ver nutricionistas disponíveis" onPress={() => router.push('/nutri/directory')} />
+      <AppButton size="lg" variant="secondary" icon="key-outline" label="Tenho o ID do nutricionista" onPress={() => router.push('/auth/nutri-code')} />
+      <InlineNotice tone="info" title="O que muda depois do aceite">
+        O nutricionista passa a ver seu diário, a água e as medidas que você registra, pode enviar um plano alimentar e conversar com você pelo chat. Enquanto isso, o app continua funcionando no modo solo.
+      </InlineNotice>
+    </ScrollView>
   );
 }

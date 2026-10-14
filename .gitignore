@@ -5,3 +5,13 @@ node_modules
 
 expo-env.d.ts
 # @end expo-cli
+# Variáveis de ambiente locais (use .env.example como modelo)
+.env
+.env.local
+
+# Saídas de build
+dist/
+.expo/
+.expo-export-check/
+
+__pycache__/
