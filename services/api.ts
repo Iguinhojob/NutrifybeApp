@@ -105,6 +105,8 @@ export type Paciente = {
   ativo?: number;
   prescricaoSemanal?: string | null;
   calendario?: string | null;
+  retorno?: string | null;
+  foto?: string | null;
   dataCriacao?: string;
 };
 
@@ -161,12 +163,32 @@ export const PacientesAPI = {
   linkNutritionist: (nutricionistaId: number) => request<Paciente>('/api/auth/me/vinculo', {
     method: 'POST', body: JSON.stringify({ nutricionistaId }),
   }),
+  cancelNutritionistRequest: () => request<{ success: boolean; paciente: Paciente }>('/api/auth/me/vinculo/solicitacao', { method: 'DELETE' }),
   endNutritionistLink: (nota: number, comentario?: string, denuncia?: string) =>
     request<{ success: boolean; paciente: Paciente }>('/api/auth/me/vinculo/encerrar', {
       method: 'POST', body: JSON.stringify({ nota, comentario, denuncia }),
     }),
   updateCalendario: (id: number, calendario: object) => request<Paciente>(`/api/pacientes/${id}`, {
     method: 'PUT', body: JSON.stringify({ calendario: JSON.stringify(calendario) }),
+  }),
+};
+
+export const ContaAPI = {
+  solicitarRecuperacao: (email: string) => request<{ message: string }>('/api/recuperar-senha/solicitar', {
+    method: 'POST', body: JSON.stringify({ email, tipo: 'paciente' }),
+  }),
+  redefinirSenhaPorCodigo: (email: string, codigo: string, novaSenha: string) => request<{ message: string }>('/api/recuperar-senha/redefinir-codigo', {
+    method: 'POST', body: JSON.stringify({ email, codigo, novaSenha }),
+  }),
+  enviarCodigoSenha: () => request<{ success: boolean; message: string }>('/api/conta/codigo-senha', { method: 'POST', body: JSON.stringify({}) }),
+  alterarSenha: (codigo: string, novaSenha: string) => request<{ success: boolean }>('/api/conta/senha', {
+    method: 'POST', body: JSON.stringify({ codigo, novaSenha }),
+  }),
+  enviarCodigoEmail: (email: string) => request<{ success: boolean; message: string }>('/api/conta/codigo-email', {
+    method: 'POST', body: JSON.stringify({ email }),
+  }),
+  alterarEmail: (email: string, codigo: string) => request<{ success: boolean; email: string }>('/api/conta/email', {
+    method: 'POST', body: JSON.stringify({ email, codigo }),
   }),
 };
 

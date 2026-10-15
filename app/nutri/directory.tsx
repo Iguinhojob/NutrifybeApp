@@ -22,6 +22,7 @@ export default function NutritionistDirectoryScreen() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [specialty, setSpecialty] = useState(ALL);
+  const [ratingFilter, setRatingFilter] = useState('all');
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -57,16 +58,24 @@ export default function NutritionistDirectoryScreen() {
     const term = query.trim().toLocaleLowerCase('pt-BR');
     return items.filter(item => {
       if (specialty !== ALL && item.especialidade?.trim() !== specialty) return false;
+      const rating = reviews[item.id];
+      if (ratingFilter === 'rated' && !(rating?.total)) return false;
+      if (ratingFilter === '4' && !(rating?.total && (rating.media ?? 0) >= 4)) return false;
+      if (ratingFilter === '3' && !(rating?.total && (rating.media ?? 0) >= 3)) return false;
       if (!term) return true;
       return `${item.nome} ${item.especialidade ?? ''} ${item.crn} ${(item.focusAreas ?? []).join(' ')}`.toLocaleLowerCase('pt-BR').includes(term);
+    }).sort((a, b) => {
+      const ar = reviews[a.id], br = reviews[b.id];
+      const aRated = !!ar?.total, bRated = !!br?.total;
+      return Number(bRated) - Number(aRated) || (br?.media ?? 0) - (ar?.media ?? 0) || (br?.total ?? 0) - (ar?.total ?? 0) || a.nome.localeCompare(b.nome, 'pt-BR');
     });
-  }, [items, query, specialty]);
+  }, [items, query, specialty, ratingFilter, reviews]);
 
   // Quem já tem (ou aguarda) um nutricionista volta ao plano: a API só permite um vínculo por vez.
   if (state !== 'solo') return <Redirect href="/(tabs)/plan" />;
 
-  const clearFilters = () => { setQuery(''); setSpecialty(ALL); };
-  const hasFilters = !!query.trim() || specialty !== ALL;
+  const clearFilters = () => { setQuery(''); setSpecialty(ALL); setRatingFilter('all'); };
+  const hasFilters = !!query.trim() || specialty !== ALL || ratingFilter !== 'all';
 
   return <View style={{ flex: 1, backgroundColor: C.bg }}>
     <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: topPad }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -95,6 +104,19 @@ export default function NutritionistDirectoryScreen() {
           </ScrollView>
         </View>
       )}
+      <View>
+        <Text style={[styles.filterLabel, { color: C.textMuted }]}>AVALIAÇÕES</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+          {[['all', 'Todas'], ['rated', 'Com avaliações'], ['4', '4 estrelas ou mais'], ['3', '3 estrelas ou mais']].map(([value, label]) => {
+            const active = ratingFilter === value;
+            return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => setRatingFilter(value)} style={[styles.chip, { backgroundColor: active ? C.primarySoft : C.surface, borderColor: active ? C.primaryText : C.border }]}>
+              {active && <Ionicons name="checkmark" size={15} color={C.primaryText} />}
+              <Text style={{ color: active ? C.primaryText : C.text, fontWeight: '800', fontSize: 13 }}>{label}</Text>
+            </Pressable>;
+          })}
+        </ScrollView>
+        <Text style={{ color: C.textDim, fontSize: 11, marginTop: 6 }}>Profissionais com avaliações aparecem primeiro, da maior média para a menor.</Text>
+      </View>
 
       {loading ? <LoadingState label="Buscando profissionais disponíveis…" />
         : error ? <ErrorState message={error} onRetry={retry} />

@@ -14,7 +14,17 @@ import { localDateString } from '@/services/api';
 
 type Meal = { horario?: string; nome?: string; alimentos?: string; porcao?: string; calorias?: string | number; observacao?: string };
 type Plan = { version: number; meals: Meal[]; notes?: string };
+type ScheduledReturn = { data: string; hora?: string; observacao?: string };
 const keyFor = (userId: number, plan: string) => `nutrifybe:prescribed-meals:v1:${userId}:${localDateString()}:${plan.length}`;
+
+function parseScheduledReturn(raw?: string | null): ScheduledReturn | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    if (typeof value?.data !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.data)) return null;
+    return { data: value.data, hora: typeof value.hora === 'string' ? value.hora : '', observacao: typeof value.observacao === 'string' ? value.observacao : '' };
+  } catch { return null; }
+}
 
 export default function PlanScreen() {
   const fybeScroll = useFybeScroll('/plan');
@@ -25,6 +35,8 @@ export default function PlanScreen() {
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [feedback, setFeedback] = useState('');
   const toast = useToast();
+  const scheduledReturn = useMemo(() => parseScheduledReturn(user?.retorno), [user?.retorno]);
+  const upcomingReturn = scheduledReturn && scheduledReturn.data >= localDateString() ? scheduledReturn : null;
   const prescription = user?.prescricaoSemanal?.trim();
   const storageKey = user && prescription ? keyFor(user.id, prescription) : null;
   const plan = useMemo<Plan | null>(() => {
@@ -68,10 +80,20 @@ export default function PlanScreen() {
   return <ScrollView ref={fybeScroll} style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={[s.scroll, { paddingTop: topPad }]}>
     <Text accessibilityRole="header" style={[s.title, { color: C.text }]}>Plano alimentar</Text>
     <FybeTarget id="plan.status"><FollowUpStatusCard /></FybeTarget>
+    {upcomingReturn && vinculo?.status === 'ativo' && <View accessibilityLabel={`Próximo retorno ${new Date(`${upcomingReturn.data}T12:00:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}${upcomingReturn.hora ? ` às ${upcomingReturn.hora}` : ''}`} style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="calendar-outline" size={22} color={C.primaryText} /></View>
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={{ color: C.text, fontSize: 15, fontWeight: '900' }}>Próximo retorno</Text>
+          <Text style={{ color: C.textMuted, fontSize: 13, textTransform: 'capitalize' }}>{new Date(`${upcomingReturn.data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}{upcomingReturn.hora ? ` · ${upcomingReturn.hora}` : ''}</Text>
+        </View>
+      </View>
+      {!!upcomingReturn.observacao && <InlineNotice tone="info" title="Orientação para o retorno">{upcomingReturn.observacao}</InlineNotice>}
+    </View>}
     <FybeTarget id="plan.current"><View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
       <Text accessibilityRole="header" style={[s.cardTitle, { color: C.text }]}>Plano atual</Text>
       {plan ? <>
-        <Text style={{ color: C.textMuted, fontSize: 13, lineHeight: 19 }}>Toque em uma refeição para marcá-la como concluída. Ela entra no seu diário de hoje com as calorias informadas pelo nutricionista.</Text>
+        <Text style={{ color: C.textMuted, fontSize: 13, lineHeight: 19 }}>Toque em uma refeição para marcá-la como concluída. As calorias dela serão somadas ao consumo do dia; sua meta diária permanece a mesma.</Text>
         {plan.meals.map((meal, index) => {
           const checked = !!done[index];
           const hasCalories = meal.calorias != null && meal.calorias !== '';

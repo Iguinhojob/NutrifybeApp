@@ -17,14 +17,13 @@ export function EvolucaoCaloriasDiaria() {
     fat: sum.fat + (meal.fat ?? 0), fiber: sum.fiber + (meal.fiber ?? 0),
   }), { protein: 0, carbs: 0, fat: 0, fiber: 0 }), [mealsToday]);
   const calculatedGoal = user ? calculateCalorieGoal(user) : 0;
-  const target = calorieTarget?.origem === 'plano'
-    ? calorieTarget.calorias
-    : calculatedGoal || calorieTarget?.calorias || null;
+  const savedGoal = calorieTarget?.origem === 'plano' ? 0 : calorieTarget?.calorias || 0;
+  const target = calculatedGoal || savedGoal || null;
 
   return <View style={{ gap: 10 }}>
     {!ready || (goalLoading && !calorieTarget) ? <View style={{ minHeight: 230, borderRadius: 24, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: C.surface }}><ActivityIndicator color={C.primary} /><Text style={{ color: C.textMuted }}>Carregando seu dia…</Text></View> : <GraficoEvolucaoCalorias
       refeicoes={mealsToday} metaDiaria={target} macros={macros} refeicoesPlanejadas={calorieTarget?.refeicoes}
-      origemMeta={calorieTarget?.origem === 'plano' ? 'plano' : 'calculada'} />}
+      origemMeta="calculada" />}
     {!!goalError && <Pressable accessibilityRole="button" disabled={goalLoading} onPress={() => void refreshCalorieTarget()} style={{ borderRadius: 14, padding: 14, backgroundColor: C.surface2 }}><Text style={{ color: C.textMuted, fontSize: 12 }}>{goalLoading ? 'Tentando novamente…' : goalError}</Text></Pressable>}
   </View>;
 }

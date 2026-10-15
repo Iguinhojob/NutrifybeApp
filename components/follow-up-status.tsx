@@ -3,7 +3,7 @@ import { useAuth } from '@/context/auth';
 import { usePremiumTheme } from '@/context/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export type FollowUpState = 'ativo' | 'pendente' | 'solo';
 
@@ -29,6 +29,7 @@ const COPY: Record<FollowUpState, { pill: string; tone: Tone; icon: IconName }> 
 export function FollowUpStatusCard({ compact = false }: { compact?: boolean }) {
   const { colors: C } = usePremiumTheme();
   const { state, nutricionista } = useFollowUp();
+  const { cancelarSolicitacaoVinculo } = useAuth();
   const copy = COPY[state];
   const nome = nutricionista?.nome;
 
@@ -40,7 +41,7 @@ export function FollowUpStatusCard({ compact = false }: { compact?: boolean }) {
   const description = state === 'ativo'
     ? 'Seu diário, suas medidas e a conversa ficam disponíveis para o profissional.'
     : state === 'pendente'
-      ? 'O nutricionista precisa aceitar o pedido. Enquanto isso, continue registrando suas refeições normalmente. Plano e chat são liberados após o aceite.'
+      ? 'O nutricionista pode aceitar seu pedido em até 24 horas. Enquanto isso, use o app de modo autônomo e registre suas refeições normalmente. Plano e chat ficam disponíveis após o aceite.'
       : 'Quando quiser, encontre um nutricionista para receber um plano alimentar e conversar pelo app.';
 
   const openProfile = () => nutricionista && router.push({ pathname: '/nutri/professional', params: { id: String(nutricionista.id) } });
@@ -82,6 +83,7 @@ export function FollowUpStatusCard({ compact = false }: { compact?: boolean }) {
       <View style={{ gap: 8 }}>
         {primary && <AppButton label={primary.label} icon={primary.icon} onPress={primary.onPress} />}
         {state === 'solo' && <AppButton variant="secondary" label="Tenho o ID do nutricionista" icon="key-outline" onPress={() => router.push('/auth/nutri-code')} />}
+        {state === 'pendente' && <AppButton variant="secondary" label="Cancelar solicitação" icon="close-circle-outline" onPress={() => Alert.alert('Cancelar solicitação?', 'Tem certeza de que deseja cancelar o pedido? Você poderá continuar usando o app de modo autônomo e escolher outro profissional.', [{ text: 'Manter solicitação', style: 'cancel' }, { text: 'Cancelar pedido', style: 'destructive', onPress: async () => { const result = await cancelarSolicitacaoVinculo(); if (!result.success) Alert.alert('Não foi possível cancelar', result.error); } }])} />}
         {state === 'ativo' && nutricionista && <AppButton variant="secondary" label="Ver perfil do nutricionista" icon="person-outline" onPress={openProfile} />}
       </View>
     </View>

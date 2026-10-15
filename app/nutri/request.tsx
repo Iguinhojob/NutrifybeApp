@@ -16,8 +16,8 @@ export default function RequestScreen() {
       </Text>
       <AppButton size="lg" icon="search-outline" label="Ver nutricionistas disponíveis" onPress={() => router.push('/nutri/directory')} />
       <AppButton size="lg" variant="secondary" icon="key-outline" label="Tenho o ID do nutricionista" onPress={() => router.push('/auth/nutri-code')} />
-      <InlineNotice tone="info" title="O que muda depois do aceite">
-        O nutricionista passa a ver seu diário, a água e as medidas que você registra, pode enviar um plano alimentar e conversar com você pelo chat. Enquanto isso, o app continua funcionando no modo solo.
+      <InlineNotice tone="info" title="Resposta em até 24 horas">
+        Após o envio, você pode continuar usando o app de modo autônomo. O pedido fica reservado a um profissional por vez e pode ser cancelado enquanto aguarda. Depois do aceite, ele passa a ver seu diário, água e medidas, além de enviar planos e conversar com você.
       </InlineNotice>
     </ScrollView>
   );

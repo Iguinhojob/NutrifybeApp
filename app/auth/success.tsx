@@ -5,10 +5,11 @@ import { usePremiumTheme } from '@/context/theme';
 import { DEMO_MODE } from '@/services/demo';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router } from 'expo-router';
-import { Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
+import { AppButton } from '@/components/ui-kit';
 
 export default function SuccessScreen() {
-  const { user, vinculo } = useAuth();
+  const { user, vinculo, cancelarSolicitacaoVinculo } = useAuth();
   const { startEditing } = useOnboarding();
   const { colors: C, isDark } = usePremiumTheme();
   if (!user) return <Redirect href="/auth/welcome" />;
@@ -17,7 +18,7 @@ export default function SuccessScreen() {
     ['Preferências', user.restrictions],
   ];
   const linkMessage = vinculo?.status === 'pendente'
-    ? `Sua solicitação para ${vinculo.nutricionista.nome} foi enviada. Aguarde a confirmação do profissional.`
+    ? `Sua solicitação para ${vinculo.nutricionista.nome} foi enviada. Ele poderá aceitar em até 24 horas. Enquanto isso, você pode usar o app de modo autônomo.`
     : vinculo
       ? `Você está conectado a ${vinculo.nutricionista.nome}${DEMO_MODE ? ' nesta demonstração' : ''}.`
       : 'Seu nutricionista pode entrar nessa jornada quando você quiser. O vínculo fica disponível no perfil e no plano.';
@@ -32,6 +33,7 @@ export default function SuccessScreen() {
       {items.filter(([, value]) => !!value).map(([label, value]) => <View key={label} style={{ paddingVertical: 14, gap: 4 }}><Text style={{ fontSize: 11, color: C.textMuted }}>{label}</Text><Text style={{ fontSize: 15, fontWeight: '600', color: C.text }}>{value}</Text></View>)}
     </View>
     <Note>{linkMessage}</Note>
+    {vinculo?.status === 'pendente' && <AppButton variant="secondary" label="Cancelar solicitação" icon="close-circle-outline" onPress={() => Alert.alert('Cancelar solicitação?', 'Tem certeza de que deseja cancelar o pedido? Você poderá usar o app de modo autônomo e escolher outro profissional.', [{ text: 'Manter solicitação', style: 'cancel' }, { text: 'Cancelar pedido', style: 'destructive', onPress: async () => { const result = await cancelarSolicitacaoVinculo(); if (result.success) router.replace('/(tabs)'); else Alert.alert('Não foi possível cancelar', result.error); } }])} />}
     {DEMO_MODE && <Text style={{ fontSize: 12, color: C.textMuted, lineHeight: 19 }}>Perfil local salvo neste aparelho. Nenhuma conta foi criada no servidor.</Text>}
   </OnboardingShell>;
 }

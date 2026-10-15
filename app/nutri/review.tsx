@@ -27,7 +27,6 @@ export default function ReviewScreen() {
 
   const field = { backgroundColor: colors.surface2, borderRadius: 14, padding: 14, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.border, minHeight: 100, textAlignVertical: 'top' as const };
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 24, gap: 16 }}>
-    <TouchableOpacity onPress={() => router.back()} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 4 }}><Ionicons name="arrow-back" size={20} color={colors.primary} /><Text style={{ color: colors.primary, fontWeight: '800' }}>Voltar</Text></TouchableOpacity>
     <Text style={{ fontSize: 24, fontWeight: '900', color: colors.text }}>Encerrar acompanhamento</Text>
     <Text style={{ fontSize: 14, lineHeight: 21, color: colors.textMuted }}>Sua avaliação será registrada e o vínculo com este profissional será encerrado.</Text>
 

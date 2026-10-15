@@ -5,7 +5,7 @@ O Fybe é o mascote do NutriFybe e funciona como um guia do app do paciente. Ele
 **O Fybe não é uma inteligência artificial.** Todo o conteúdo é fixo e está em `components/fybe/content.ts`. Não há chamadas a serviços externos, chaves de API nem dependências novas. O Fybe também não dá orientação nutricional ou clínica: ele só mostra onde ficam as funções do app.
 
 ## Onde aparece
-- Nas telas logadas com barra de abas: Início, Plano, Chat, Evolução, Perfil, Histórico, Água e IMC.
+- Nas telas logadas com barra de abas: Início, Plano, Chat, Evolução, Perfil, Histórico e Água.
 - Não aparece na abertura, no login, no cadastro nem nas telas públicas.
 - No chat com acompanhamento ativo, o botão flutuante cobriria o campo de mensagem. Por isso ele vai para o cabeçalho da conversa.
 

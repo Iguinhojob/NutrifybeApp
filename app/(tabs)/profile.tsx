@@ -1,9 +1,12 @@
 import { useAuth } from '@/context/auth';
 import { usePremiumTheme } from '@/context/theme';
 import { useAppLayout } from '@/hooks/useAppLayout';
+import { ContaAPI } from '@/services/api';
+import * as ImagePicker from 'expo-image-picker';
+import { isValidEmail, isValidPassword, passwordRules } from '@/utils/onboarding';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FollowUpStatusCard } from '@/components/follow-up-status';
 import { FybeTarget, FybeTourSpacer, useFybeScroll } from '@/components/fybe';
@@ -20,7 +23,7 @@ const MOMENTS: Record<string, string[]> = {
 
 export default function ProfileScreen() {
   const fybeScroll = useFybeScroll('/profile');
-  const { user, updateUser, logout } = useAuth();
+  const { user, updateUser, refreshUser, logout } = useAuth();
   const { colors, isDark, toggleTheme } = usePremiumTheme();
   const { topPad } = useAppLayout();
   const toast = useToast();
@@ -28,6 +31,15 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
   const [nutritionModal, setNutritionModal] = useState(false);
+  const [securityModal, setSecurityModal] = useState(false);
+  const [securityMode, setSecurityMode] = useState<'menu' | 'email' | 'password'>('menu');
+  const [securityEmail, setSecurityEmail] = useState('');
+  const [securityCode, setSecurityCode] = useState('');
+  const [securityPassword, setSecurityPassword] = useState('');
+  const [securityConfirmation, setSecurityConfirmation] = useState('');
+  const [securityCodeSent, setSecurityCodeSent] = useState(false);
+  const [securityBusy, setSecurityBusy] = useState(false);
+  const [securityMessage, setSecurityMessage] = useState('');
   const [form, setForm] = useState({ name: '' });
   const [nutritionForm, setNutritionForm] = useState({ activityLevel: '', motivation: '', restrictions: [] as string[] });
 
@@ -75,8 +87,67 @@ export default function ProfileScreen() {
     }
   };
 
+  const selectProfilePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.65, base64: true });
+      if (result.canceled || !result.assets[0]?.base64) return;
+      const asset = result.assets[0];
+      if (asset.base64.length > 3_499_900) return toast.show({ tone: 'error', title: 'Imagem muito grande', message: 'Escolha uma foto menor para salvar no perfil.' });
+      const mime = asset.mimeType || 'image/jpeg';
+      await updateUser({ foto: `data:${mime};base64,${asset.base64}` });
+      toast.show({ tone: 'success', title: 'Foto atualizada', message: 'Sua foto de perfil foi salva.' });
+    } catch (error: any) {
+      toast.show({ tone: 'error', title: 'Não foi possível salvar a foto', message: error?.message || 'Confira sua conexão e tente novamente.' });
+    }
+  };
+
+  const openSecurity = (mode: 'menu' | 'email' | 'password') => {
+    setSecurityMode(mode);
+    setSecurityCodeSent(false);
+    setSecurityCode('');
+    setSecurityMessage('');
+    if (mode === 'email') setSecurityEmail('');
+    setSecurityModal(true);
+  };
+
+  const sendSecurityCode = async () => {
+    setSecurityMessage('');
+    if (securityMode === 'email' && !isValidEmail(securityEmail)) { setSecurityMessage('Informe um e-mail válido.'); return; }
+    setSecurityBusy(true);
+    try {
+      const result = securityMode === 'email' ? await ContaAPI.enviarCodigoEmail(securityEmail.trim().toLowerCase()) : await ContaAPI.enviarCodigoSenha();
+      setSecurityCodeSent(true);
+      setSecurityMessage(result.message || 'Código enviado. Confira seu e-mail.');
+    } catch (e: any) { setSecurityMessage(e?.message || 'Não foi possível enviar o código. Tente novamente.'); }
+    finally { setSecurityBusy(false); }
+  };
+
+  const submitSecurityChange = async () => {
+    setSecurityMessage('');
+    if (!/^\d{6}$/.test(securityCode.trim())) { setSecurityMessage('Informe o código de 6 números recebido por e-mail.'); return; }
+    if (securityMode === 'email' && !isValidEmail(securityEmail)) { setSecurityMessage('Informe um e-mail válido.'); return; }
+    if (securityMode === 'password') {
+      if (!isValidPassword(securityPassword)) { setSecurityMessage('A senha precisa ter pelo menos 6 caracteres, uma letra maiúscula e um símbolo.'); return; }
+      if (securityPassword !== securityConfirmation) { setSecurityMessage('As senhas não coincidem.'); return; }
+    }
+    setSecurityBusy(true);
+    try {
+      if (securityMode === 'email') {
+        await ContaAPI.alterarEmail(securityEmail.trim().toLowerCase(), securityCode.trim());
+        await refreshUser();
+        toast.show({ tone: 'success', title: 'E-mail atualizado', message: 'Seu novo e-mail já pode ser usado para entrar.' });
+      } else {
+        await ContaAPI.alterarSenha(securityCode.trim(), securityPassword);
+        toast.show({ tone: 'success', title: 'Senha atualizada', message: 'Sua nova senha foi salva.' });
+      }
+      setSecurityModal(false);
+    } catch (e: any) { setSecurityMessage(e?.message || 'Não foi possível confirmar a alteração. Confira o código e tente novamente.'); }
+    finally { setSecurityBusy(false); }
+  };
+
   const menuItems = [
     { icon: 'person-add-outline' as const, label: user?.nutricionistaId ? 'Meu nutricionista' : 'Vincular nutricionista', onPress: () => router.push(user?.nutricionistaId ? '/(tabs)/plan' : '/nutri/request') },
+    { icon: 'key-outline' as const, label: 'E-mail e senha', onPress: () => openSecurity('menu') },
     { icon: 'sunny-outline'              as const, label: isDark ? 'Modo claro' : 'Modo escuro', onPress: toggleTheme },
     { icon: 'settings-outline'           as const, label: 'Configurações',           onPress: () => router.push('/institutional/settings') },
     { icon: 'information-circle-outline' as const, label: 'Sobre Nós',               onPress: () => router.push('/institutional/about') },
@@ -91,10 +162,12 @@ export default function ProfileScreen() {
 
         <View style={s.avatarSection}>
           <View style={[s.avatar, { backgroundColor: colors.primary }]}>
-            <Text style={s.avatarText}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>
+            {user?.foto ? <Image source={{ uri: user.foto }} style={s.avatarImage} /> : <Text style={s.avatarText}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>}
           </View>
           <Text style={[s.userName,  { color: colors.text }]}>{user?.name}</Text>
           <Text style={[s.userEmail, { color: colors.textMuted }]}>{user?.email}</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={() => void selectProfilePhoto()} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8 }}><Ionicons name="camera-outline" size={17} color={colors.primaryText} /><Text style={{ color: colors.primaryText, fontWeight: '800', fontSize: 13 }}>{user?.foto ? 'Alterar foto' : 'Adicionar foto'}</Text></TouchableOpacity>
+          {!!user?.foto && <TouchableOpacity onPress={() => void updateUser({ foto: '' }).then(() => toast.show({ tone: 'success', title: 'Foto removida', message: 'Sua foto de perfil foi removida.' })).catch(() => toast.show({ tone: 'error', title: 'Não foi possível remover', message: 'Tente novamente.' }))}><Text style={{ color: colors.textMuted, fontSize: 12 }}>Remover foto</Text></TouchableOpacity>}
         </View>
 
         <FybeTarget id="profile.nutrition">
@@ -121,7 +194,6 @@ export default function ProfileScreen() {
             { icon: 'time-outline' as const, label: 'Histórico alimentar', hint: 'Refeições de dias anteriores', route: '/(tabs)/history' },
             { icon: 'water-outline' as const, label: 'Água', hint: 'Registrar e acompanhar hidratação', route: '/(tabs)/water' },
             { icon: 'fitness-outline' as const, label: 'Medidas', hint: 'Peso, cintura, quadril e mais', route: '/nutri/tracking' },
-            { icon: 'body-outline' as const, label: 'Calculadora de IMC', hint: 'Índice de massa corporal', route: '/(tabs)/bmi' },
             { icon: 'notifications-outline' as const, label: 'Notificações', hint: 'Avisos desta sessão', route: '/notifications' },
           ].map((item, i, list) => (
             <TouchableOpacity key={item.label} accessibilityRole="button" accessibilityLabel={item.label} accessibilityHint={item.hint} style={[s.menuItem, i < list.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]} onPress={() => router.push(item.route as any)}>
@@ -201,6 +273,34 @@ export default function ProfileScreen() {
           </ScrollView>
         </Modal>
 
+        <Modal visible={securityModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSecurityModal(false)}>
+          <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 24, paddingBottom: 50, gap: 14 }} keyboardShouldPersistTaps="handled">
+            <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>{securityMode === 'menu' ? 'Segurança da conta' : securityMode === 'email' ? 'Alterar e-mail' : 'Alterar senha'}</Text>
+            <Text style={{ color: colors.textMuted, lineHeight: 20 }}>As alterações são confirmadas com um código enviado por e-mail e válido por 10 minutos.</Text>
+            {securityMode === 'menu' ? <>
+              <TouchableOpacity accessibilityRole="button" onPress={() => openSecurity('email')} style={[s.menuItem, { backgroundColor: colors.surface, borderRadius: 14 }]}><Ionicons name="mail-outline" size={20} color={colors.primaryText} /><View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: '800' }}>Alterar e-mail</Text><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>{user?.email}</Text></View><Ionicons name="chevron-forward" size={18} color={colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" onPress={() => openSecurity('password')} style={[s.menuItem, { backgroundColor: colors.surface, borderRadius: 14 }]}><Ionicons name="lock-closed-outline" size={20} color={colors.primaryText} /><Text style={{ flex: 1, color: colors.text, fontWeight: '800' }}>Alterar senha</Text><Ionicons name="chevron-forward" size={18} color={colors.textMuted} /></TouchableOpacity>
+            </> : <>
+              {securityMode === 'email' && <TextInput style={[s.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface2 }]} value={securityEmail} onChangeText={value => { setSecurityEmail(value); setSecurityCodeSent(false); setSecurityCode(''); }} placeholder="Novo e-mail" placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" />}
+              {securityCodeSent && <>
+                <TextInput style={[s.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface2 }]} value={securityCode} onChangeText={value => setSecurityCode(value.replace(/\D/g, '').slice(0, 6))} placeholder="Código de 6 números" placeholderTextColor={colors.textMuted} keyboardType="number-pad" autoComplete="one-time-code" />
+                {securityMode === 'password' && <>
+                  <TextInput style={[s.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface2 }]} value={securityPassword} onChangeText={setSecurityPassword} placeholder="Nova senha" placeholderTextColor={colors.textMuted} secureTextEntry autoCapitalize="none" autoComplete="new-password" />
+                  {passwordRules(securityPassword).map(rule => <Text key={rule.label} style={{ color: colors.textMuted, fontSize: 12 }}>{securityPassword && rule.ok ? '✓' : '○'} {rule.label}</Text>)}
+                  <TextInput style={[s.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface2 }]} value={securityConfirmation} onChangeText={setSecurityConfirmation} placeholder="Confirmar nova senha" placeholderTextColor={colors.textMuted} secureTextEntry autoCapitalize="none" autoComplete="new-password" />
+                </>}
+              </>}
+              {!!securityMessage && <Text accessibilityRole="alert" style={{ color: securityCodeSent && !securityMessage.toLowerCase().includes('não foi') && !securityMessage.toLowerCase().includes('inválido') ? colors.primaryText : colors.danger, fontSize: 13, lineHeight: 19 }}>{securityMessage}</Text>}
+              {!securityCodeSent ? <TouchableOpacity disabled={securityBusy} onPress={() => void sendSecurityCode()} style={[s.saveBtn, { backgroundColor: colors.primary, opacity: securityBusy ? 0.7 : 1 }]}><Text style={s.saveBtnText}>{securityBusy ? 'Enviando…' : 'Enviar código por e-mail'}</Text></TouchableOpacity> : <>
+                <TouchableOpacity disabled={securityBusy} onPress={() => void sendSecurityCode()} style={[s.modalBtnNo, { borderColor: colors.border }]}><Text style={[s.modalBtnNoText, { color: colors.text }]}>{securityBusy ? 'Enviando…' : 'Enviar outro código'}</Text></TouchableOpacity>
+                <TouchableOpacity disabled={securityBusy} onPress={() => void submitSecurityChange()} style={[s.saveBtn, { backgroundColor: colors.primary, opacity: securityBusy ? 0.7 : 1 }]}><Text style={s.saveBtnText}>{securityBusy ? 'Confirmando…' : securityMode === 'email' ? 'Confirmar novo e-mail' : 'Confirmar nova senha'}</Text></TouchableOpacity>
+              </>}
+              <TouchableOpacity onPress={() => openSecurity('menu')} style={{ padding: 12, alignItems: 'center' }}><Text style={{ color: colors.textMuted, fontWeight: '700' }}>Voltar</Text></TouchableOpacity>
+            </>}
+            <TouchableOpacity onPress={() => setSecurityModal(false)} style={{ padding: 12, alignItems: 'center' }}><Text style={{ color: colors.textMuted, fontWeight: '700' }}>Fechar</Text></TouchableOpacity>
+          </ScrollView>
+        </Modal>
+
         <View style={{ height: 100 }} />
         <FybeTourSpacer pathname="/profile" />
       </ScrollView>
@@ -212,6 +312,7 @@ const s = StyleSheet.create({
   scroll:          { padding: 20, gap: 14, width: '100%', maxWidth: 720, alignSelf: 'center' },
   avatarSection:   { alignItems: 'center', gap: 6, marginBottom: 4 },
   avatar:          { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  avatarImage:     { width: '100%', height: '100%', borderRadius: 40 },
   avatarText:      { fontSize: 32, fontWeight: '900', color: '#fff' },
   userName:        { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
   userEmail:       { fontSize: 13, fontWeight: '500' },

@@ -2,7 +2,7 @@
 
 ## Navegação
 - A barra inferior passou de 6 para 5 abas: **Início, Plano, Chat, Evolução e Perfil**. Os rótulos ficaram em 12 pt, o item ativo usa ícone preenchido e a altura respeita a área segura do aparelho.
-- O **Histórico** saiu da barra e continua acessível pelo botão "Histórico" do diário, pelos atalhos do Início e pela nova seção **Mais ferramentas** do Perfil, junto com Água, Medidas, IMC e Notificações. Antes, a tela de notificações não tinha nenhum caminho de acesso.
+- O **Histórico** saiu da barra e continua acessível pelo botão "Histórico" do diário, pelos atalhos do Início e pela nova seção **Mais ferramentas** do Perfil, junto com Água, Medidas e Notificações. Antes, a tela de notificações não tinha nenhum caminho de acesso.
 
 ## Tela inicial
 - Mostra primeiro o resumo do consumo do dia, com o botão **Registrar refeição** dentro do mesmo cartão.

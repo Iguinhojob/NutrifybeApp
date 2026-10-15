@@ -27,8 +27,11 @@ export type User = {
   healthNote?: string;
   followupPreference?: string;
   nutricionistaId?: number | null;
+  status?: string;
   prescricaoSemanal?: string | null;
   calendario?: string | null;
+  retorno?: string | null;
+  foto?: string | null;
 };
 
 export type VinculoStatus = 'pendente' | 'ativo' | 'sem_vinculo';
@@ -62,6 +65,7 @@ type AuthContextType = {
   updateUser: (data: Partial<User>) => Promise<void>;
   refreshUser: () => Promise<void>;
   solicitarVinculo: (nutricionistaId: number) => Promise<{ success: boolean; error?: string }>;
+  cancelarSolicitacaoVinculo: () => Promise<{ success: boolean; error?: string }>;
   encerrarVinculo: (nota: number, comentario?: string, denuncia?: string) => Promise<{ success: boolean; error?: string }>;
   marcarNotificacaoLida: (id: string) => void;
   clearError: () => void;
@@ -88,7 +92,7 @@ export type RegisterData = {
   nutricionistaId?: number;
 };
 
-type LocalProfile = User & { password: string };
+type LocalProfile = User & { password: string; linkStatus?: 'pending' | 'accepted' };
 const LOCAL_PROFILES_KEY = 'nutrifybe:local-profiles:v1';
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -114,8 +118,11 @@ function pacienteToUser(p: Paciente): User {
     origin: p.origem,
     followupPreference: p.preferenciaAcompanhamento,
     nutricionistaId: p.nutricionistaId,
+    status: p.status,
     prescricaoSemanal: p.prescricaoSemanal,
     calendario: p.calendario,
+    retorno: p.retorno,
+    foto: p.foto,
   };
 }
 
@@ -178,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!profile || profile.password !== senha) { setError('E-mail ou senha inválidos.'); return false; }
         const { password: _password, ...u } = profile;
         setUser(u);
-        setVinculo(u.nutricionistaId ? { nutricionista: findDemoNutritionistById(u.nutricionistaId), status: 'ativo' } : null);
+        setVinculo(u.nutricionistaId ? { nutricionista: findDemoNutritionistById(u.nutricionistaId), status: u.linkStatus === 'pending' ? 'pendente' : 'ativo' } : null);
         return true;
       }
       const resposta = await PacientesAPI.login(email, senha);
@@ -239,14 +246,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           targetWeight: data.targetWeight.replace(',', '.'), waterGoal: data.waterGoal, goal: data.goal,
           activityLevel: data.activityLevel, restrictions: data.restrictions, origin: data.origin,
           motivation: data.motivation, healthNote: data.healthNote, followupPreference: data.followupPreference,
-          nutriCode: data.nutriCode, nutricionistaId: nutri?.id ?? null, password: data.password,
+          nutriCode: data.nutriCode, nutricionistaId: nutri?.id ?? null, status: nutri ? 'pending' : 'solo', linkStatus: nutri ? 'pending' : undefined, password: data.password,
         };
         demoProfiles.current.set(email, u);
         await saveLocalProfiles();
         const { password: _password, ...localUser } = u;
         setUser(localUser);
-        setVinculo(nutri ? { nutricionista: nutri, status: 'ativo' } : null);
-        if (nutri) addNotificacao('vinculo_aceito', 'Vínculo de demonstração', `Seu perfil está conectado a ${nutri.nome} nesta prévia.`);
+        setVinculo(nutri ? { nutricionista: nutri, status: 'pendente' } : null);
+        if (nutri) addNotificacao('geral', 'Solicitação enviada', `Sua solicitação para ${nutri.nome} poderá ser aceita em até 24 horas.`);
         return { success: true };
       }
       // Verifica se email já existe
@@ -304,11 +311,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (DEMO_MODE) {
         const nutri = await findNutritionist(String(nutricionistaId));
         if (!nutri) return { success: false, error: 'Código não encontrado. Na demonstração, use 1234.' };
-        const updated = { ...user, nutricionistaId: nutri.id, nutriCode: String(nutri.id) };
+        const updated = { ...user, nutricionistaId: nutri.id, nutriCode: String(nutri.id), status: 'pending' };
         setUser(updated);
         const existing = demoProfiles.current.get(user.email.toLowerCase());
-        if (existing) { demoProfiles.current.set(user.email.toLowerCase(), { ...existing, ...updated }); await saveLocalProfiles(); }
-        setVinculo({ nutricionista: nutri, status: 'ativo' });
+        if (existing) { demoProfiles.current.set(user.email.toLowerCase(), { ...existing, ...updated, linkStatus: 'pending' }); await saveLocalProfiles(); }
+        setVinculo({ nutricionista: nutri, status: 'pendente' });
+        addNotificacao('geral', 'Solicitação enviada', `Sua solicitação para ${nutri.nome} poderá ser aceita em até 24 horas.`);
         return { success: true };
       }
       const nutri = await NutricionistasAPI.getById(nutricionistaId);
@@ -321,7 +329,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(pacienteToUser(paciente));
       setVinculo({ nutricionista: nutri, status: 'pendente' });
 
-      addNotificacao('geral', 'Solicitação enviada', `Sua solicitação foi enviada para ${nutri.nome}. Aguarde a confirmação.`);
+      addNotificacao('geral', 'Solicitação enviada', `Sua solicitação foi enviada para ${nutri.nome}. Ele poderá aceitar em até 24 horas.`);
 
       return { success: true };
     } catch (e: any) {
@@ -329,6 +337,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const cancelarSolicitacaoVinculo = async (): Promise<{ success: boolean; error?: string }> => {
+    if (!user?.nutricionistaId || (vinculo?.status !== 'pendente' && user.status !== 'pending')) return { success: false, error: 'Não há solicitação pendente para cancelar.' };
+    try {
+      if (DEMO_MODE) {
+        const updated = { ...user, nutricionistaId: null, status: 'solo' };
+        setUser(updated);
+        const existing = demoProfiles.current.get(user.email.toLowerCase());
+        if (existing) { demoProfiles.current.set(user.email.toLowerCase(), { ...existing, nutricionistaId: null, status: 'solo', linkStatus: undefined }); await saveLocalProfiles(); }
+        setVinculo(null);
+      } else {
+        const result = await PacientesAPI.cancelNutritionistRequest();
+        setUser(pacienteToUser(result.paciente));
+        setVinculo(null);
+      }
+      addNotificacao('geral', 'Solicitação cancelada', 'Você voltou ao modo autônomo e pode escolher um nutricionista.');
+      return { success: true };
+    } catch (e: any) { return { success: false, error: e.message || 'Não foi possível cancelar a solicitação.' }; }
   };
 
   // ── Helpers internos ───────────────────────────────────────────────────────
@@ -366,6 +393,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ['sexo', 'sexo'], ['activityLevel', 'activityLevel'], ['restrictions', 'restrictions'],
         ['motivation', 'motivation'], ['healthNote', 'healthNote'], ['origin', 'origin'],
         ['followupPreference', 'followupPreference'],
+        ['foto', 'foto'],
       ];
       for (const [userKey, apiKey] of fields) {
         if (Object.prototype.hasOwnProperty.call(data, userKey)) payload[apiKey] = data[userKey];
@@ -426,7 +454,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       vinculo, notificacoes,
       loading, error,
       login, register, logout, updateUser, refreshUser,
-      solicitarVinculo, encerrarVinculo, marcarNotificacaoLida, clearError,
+      solicitarVinculo, cancelarSolicitacaoVinculo, encerrarVinculo, marcarNotificacaoLida, clearError,
     }}>
       {children}
     </AuthContext.Provider>

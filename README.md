@@ -20,7 +20,7 @@ O modo de demonstração (`EXPO_PUBLIC_DEMO_MODE=true`) usa perfis locais e não
 O token de acesso fica guardado no armazenamento seguro do aparelho (`expo-secure-store`). Assim, o paciente continua conectado ao reabrir o app. Ao tocar em "Sair", o token é apagado. Na versão web, o token fica no armazenamento do navegador.
 
 ## Estrutura
-- `app/(tabs)`: Início (resumo do dia e diário), Plano, Chat, Evolução e Perfil, além de Histórico, Água e IMC, abertos pelos atalhos.
+- `app/(tabs)`: Início (resumo do dia e diário), Plano, Chat, Evolução e Perfil, além de Histórico e Água, abertos pelos atalhos.
 - `app/nutri`: busca de nutricionistas, perfil do profissional, solicitação, avaliação e medidas.
 - `app/auth`: boas-vindas, cadastro em etapas, login e recuperação de senha.
 - `components/ui-kit.tsx`: botões, cartões, avisos e estados de carregamento, vazio e erro compartilhados.

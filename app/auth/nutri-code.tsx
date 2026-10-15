@@ -50,7 +50,7 @@ export default function NutriCodeScreen() {
       if (selected) {
         const result = await solicitarVinculo(selected.id);
         if (!result.success) setError(result.error ?? 'Não foi possível conectar agora.');
-        else setLinked(true);
+        else { setLinked(true); if (!onboarding) router.replace('/nutri/request-sent'); }
       } else {
         const nutri = await findNutritionist(code.trim());
         if (!nutri) setError(DEMO_MODE ? 'Código não encontrado. Para testar esta prévia, use 1234.' : 'Não encontramos um profissional ativo com esse ID. Confira o código.');

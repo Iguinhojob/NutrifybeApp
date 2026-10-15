@@ -5,7 +5,7 @@
  * existem de verdade no app; o Fybe não usa IA e não dá orientação nutricional.
  */
 
-export type FybeHref = '/(tabs)' | '/(tabs)/plan' | '/(tabs)/messages' | '/(tabs)/trends' | '/(tabs)/profile' | '/(tabs)/history' | '/(tabs)/water' | '/(tabs)/bmi' | '/nutri/tracking' | '/nutri/directory';
+export type FybeHref = '/(tabs)' | '/(tabs)/plan' | '/(tabs)/messages' | '/(tabs)/trends' | '/(tabs)/profile' | '/(tabs)/history' | '/(tabs)/water' | '/nutri/tracking' | '/nutri/directory';
 
 export type TutorialStep = {
   id: string;
@@ -57,7 +57,7 @@ export const TUTORIALS: Tutorial[] = [
       { id: 'registrar', route: HOME, target: 'home.register', title: 'Registrar uma refeição', message: 'Este é o atalho principal: toque aqui sempre que comer algo para anotar no seu diário.' },
       { id: 'acompanhamento', route: HOME, target: 'home.followup', title: 'Seu acompanhamento', message: 'Este cartão mostra se você está no modo solo, aguardando um nutricionista ou com acompanhamento ativo, e qual é o próximo passo.' },
       { id: 'diario', route: HOME, target: 'home.diary', title: 'Diário de hoje', message: 'Suas refeições ficam separadas por café da manhã, almoço, jantar e lanches. Dá para adicionar, editar e excluir por aqui.' },
-      { id: 'atalhos', route: HOME, target: 'home.shortcuts', title: 'Atalhos úteis', message: 'Água, IMC, medidas e o histórico dos dias anteriores ficam a um toque.' },
+      { id: 'atalhos', route: HOME, target: 'home.shortcuts', title: 'Atalhos úteis', message: 'Água, medidas e o histórico dos dias anteriores ficam a um toque.' },
       { id: 'fim', title: 'Prontinho!', message: 'Use a barra de baixo para ir ao Plano, ao Chat, à Evolução e ao Perfil. Sempre que precisar, é só tocar em mim no canto da tela!' },
     ],
   },
@@ -99,7 +99,7 @@ export const TUTORIALS: Tutorial[] = [
     steps: [
       { id: 'dados', route: PROFILE, target: 'profile.nutrition', title: 'Seu perfil nutricional', message: 'Atividade diária, seu momento e preferências alimentares. Toque em "Editar" para mudar.' },
       { id: 'status', route: PROFILE, target: 'profile.status', title: 'Acompanhamento', message: 'O mesmo cartão de status, com o atalho para encontrar ou falar com seu nutricionista.' },
-      { id: 'ferramentas', route: PROFILE, target: 'profile.tools', title: 'Mais ferramentas', message: 'Histórico alimentar, Água, Medidas, IMC e Notificações ficam aqui.' },
+      { id: 'ferramentas', route: PROFILE, target: 'profile.tools', title: 'Mais ferramentas', message: 'Histórico alimentar, Água, Medidas e Notificações ficam aqui.' },
       { id: 'menu', route: PROFILE, target: 'profile.menu', title: 'Configurações', message: 'Tema claro ou escuro, termos, privacidade e o botão para sair da conta.', fallback: 'Role até o fim da tela para ver as configurações e o botão de sair.' },
     ],
   },
@@ -152,7 +152,7 @@ export const SCREENS: ScreenHelp[] = [
     intro: 'Aqui estão os seus dados, as ferramentas extras e as configurações do app.',
     faq: [
       { q: 'Como troco para o tema escuro?', a: 'No menu do Perfil, toque em "Modo escuro" (ou "Modo claro").' },
-      { q: 'Onde ficam Água, IMC e Medidas?', a: 'Na seção Mais ferramentas, nesta tela, e nos atalhos do Início.' },
+      { q: 'Onde ficam Água e Medidas?', a: 'Na seção Mais ferramentas, nesta tela, e nos atalhos do Início.' },
       { q: 'Como saio da conta?', a: 'No fim desta tela, em "Sair da Conta".' },
     ],
   },
@@ -167,12 +167,6 @@ export const SCREENS: ScreenHelp[] = [
     goal: 'Registrar quanto você bebeu.',
     intro: 'Registre a água que você bebe ao longo do dia e compare com a sua meta diária.',
     faq: [{ q: 'Como mudo a meta de água?', a: 'Na aba Evolução, em Editar no Resumo da meta.', action: { label: 'Abrir Evolução', href: '/(tabs)/trends' } }],
-  },
-  {
-    id: 'imc', pathname: '/bmi', title: 'IMC',
-    goal: 'Calcular o índice de massa corporal.',
-    intro: 'Calcule o seu IMC a partir do peso e da altura. É uma referência geral e não substitui a avaliação de um profissional.',
-    faq: [],
   },
 ];
 

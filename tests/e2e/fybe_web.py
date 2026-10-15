@@ -266,7 +266,7 @@ with sync_playwright() as p:
     page.get_by_label('Concluir tutorial').click()
     ctx.close()
 
-    # 12. Tela sem ajuda própria? (todas as telas do Fybe têm) — verifica Água e IMC
+    # 12. Tela sem ajuda própria? (todas as telas do Fybe têm) — verifica Água e Medidas
     ctx, page = new_page(browser, fybe_prefs={'introSeen': True, 'completed': {}})
     page.goto(BASE + '/'); tid(page, 'fybe-button').wait_for(timeout=15000)
     page.get_by_label('Água', exact=True).first.click()

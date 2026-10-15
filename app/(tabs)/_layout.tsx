@@ -4,7 +4,7 @@ import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /*
- * Barra inferior com as cinco áreas mais usadas. Histórico, Água e IMC continuam
+ * Barra inferior com as cinco áreas mais usadas. Histórico e Água continuam
  * disponíveis pelos atalhos da tela Início e pela seção "Mais ferramentas" do Perfil.
  */
 export default function TabsLayout() {
@@ -38,7 +38,6 @@ export default function TabsLayout() {
       {/* Telas acessadas por atalhos (sem item na barra) */}
       <Tabs.Screen name="history" options={{ href: null }} />
       <Tabs.Screen name="water" options={{ href: null }} />
-      <Tabs.Screen name="bmi" options={{ href: null }} />
       <Tabs.Screen name="diet" options={{ href: null }} />
     </Tabs>
   );

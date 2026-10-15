@@ -12,7 +12,7 @@ import { formatFoodName, formatFoodText } from '@/utils/foodNames';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 const MEAL_SECTIONS: { key: MealType; label: string; icon: keyof typeof Ionicons.glyphMap; accent: string }[] = [
@@ -50,7 +50,7 @@ type FoodDetail = FoodSelection & { grams: number; calories: number; carbs?: num
 
 export default function HomeScreen() {
   const fybeScroll = useFybeScroll('/');
-  const { user, refreshUser } = useAuth();
+  const { user, vinculo, refreshUser } = useAuth();
   const { mealsToday, caloriesToday, addMeal, updateMeal, removeMeal, ready } = useDiary();
   const toast = useToast();
   const { goal, fromPlan } = useDailyGoal();
@@ -244,7 +244,7 @@ export default function HomeScreen() {
           <Text style={[styles.muted, { color: C.textMuted }]}>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Abrir meu perfil" onPress={() => router.push('/(tabs)/profile')} style={[styles.avatar, { backgroundColor: C.primary }]}>
-          <Text style={styles.avatarText}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>
+          {user?.foto ? <Image source={{ uri: user.foto }} style={{ width: 46, height: 46, borderRadius: 23 }} /> : <Text style={styles.avatarText}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>}
         </Pressable>
       </View>
 
@@ -276,7 +276,7 @@ export default function HomeScreen() {
         [isSmall ? 'Carb.' : 'Carboidratos', dailyMacros.carbs, '#EA580C'], ['Proteínas', dailyMacros.protein, '#2563EB'], ['Gorduras', dailyMacros.fat, '#A16207'],
       ].map(([label, value, color]) => <View key={String(label)} accessible accessibilityLabel={`${label}: ${roundMacro(Number(value))} gramas hoje`} style={[styles.dailyMacroCard, { backgroundColor: C.surface, borderColor: C.border }]}><View style={[styles.dailyMacroDot, { backgroundColor: String(color) }]} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.dailyMacroValue, { color: C.text }]}>{roundMacro(Number(value))} g</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.dailyMacroLabel, { color: C.textMuted }]}>{label}</Text></View>)}</View>
 
-      <FybeTarget id="home.followup"><FollowUpStatusCard compact /></FybeTarget>
+      {vinculo?.status !== 'ativo' && <FybeTarget id="home.followup"><FollowUpStatusCard compact /></FybeTarget>}
 
       <FybeTarget id="home.diary" style={styles.diaryGroup}>
       <SectionTitle
@@ -332,7 +332,6 @@ export default function HomeScreen() {
       <FybeTarget id="home.shortcuts">
       <View style={styles.shortcuts}>{[
         { icon: 'water-outline' as const, label: 'Água', route: '/(tabs)/water' },
-        { icon: 'body-outline' as const, label: 'IMC', route: '/(tabs)/bmi' },
         { icon: 'fitness-outline' as const, label: 'Medidas', route: '/nutri/tracking' },
         { icon: 'time-outline' as const, label: 'Histórico', route: '/(tabs)/history' },
       ].map(item => <Pressable accessibilityRole="button" accessibilityLabel={item.label} key={item.label} onPress={() => router.push(item.route as any)} style={[styles.shortcut, { backgroundColor: C.surface, borderColor: C.border }]}><Ionicons name={item.icon} size={21} color={C.primaryText} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.shortcutText, { color: C.text }]}>{item.label}</Text></Pressable>)}</View>

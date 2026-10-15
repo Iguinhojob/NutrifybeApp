@@ -39,7 +39,7 @@ const adaptive: Record<string, { title: string; options: string[] }> = {
 };
 
 export default function AboutYouScreen() {
-  const { draft: d, editing, update: updateDraft, reset, finishEditing } = useOnboarding();
+  const { draft: d, editing, reviewing, update: updateDraft, reset, finishEditing, startReview, finishReview } = useOnboarding();
   const { register, updateUser } = useAuth();
   const { colors: C, isDark } = usePremiumTheme();
   const [password, setPassword] = useState('');
@@ -111,7 +111,8 @@ export default function AboutYouScreen() {
       router.replace('/(tabs)/profile');
       return;
     }
-    if (step < 8) { go(step + 1); return; }
+    if (step < 9) { go(step + 1); return; }
+    finishReview();
     submitting.current = true;
     setBusy(true);
     setError('');
@@ -146,6 +147,7 @@ export default function AboutYouScreen() {
     'Seu prato, suas escolhas.',
     'Como nossos caminhos se cruzaram?',
     `Seu próximo capítulo, ${first || 'vamos lá'}.`,
+    'Confira seu cadastro.',
   ];
   const subtitles = [
     'Uma conversa rápida para conhecer seu momento. Tudo no seu ritmo.',
@@ -157,12 +159,13 @@ export default function AboutYouScreen() {
     'Tem alguma preferência ou cuidado alimentar? Pode marcar mais de um.',
     'E, se você já tem um nutricionista na NutriFybe, vamos conectar vocês.',
     'Seu perfil está pronto. Falta criar seu acesso para começar.',
+    'Confira suas respostas antes de criar a conta.',
   ];
 
-  return <OnboardingShell title={titles[step]} subtitle={subtitles[step]} step={step} total={editing ? 8 : 9}
+  return <OnboardingShell title={titles[step]} subtitle={subtitles[step]} step={Math.min(step, 8)} total={editing ? 8 : 9}
     eyebrow={step < 2 ? 'VAMOS NOS CONHECER' : step < 7 ? 'UM PERFIL COM A SUA CARA' : 'QUASE LÁ'}
     onBack={() => { if (step > 0) go(step - 1); else if (editing) { finishEditing(); router.replace('/(tabs)/profile'); } else router.replace('/auth/welcome'); }}
-    action={editing && step === 7 ? 'Salvar alterações' : step === 0 ? 'Vamos nos conhecer' : step === 8 ? 'Criar minha conta' : 'Continuar'}
+    action={editing && step === 7 ? 'Salvar alterações' : step === 0 ? 'Vamos nos conhecer' : step === 9 ? 'Criar minha conta' : reviewing && step === 8 ? 'Continuar revisão' : 'Continuar'}
     onAction={next} busy={busy} error={error}
     footer={step === 0 && !editing ? <TextLink label="Já tenho conta" onPress={() => router.push('/auth/login')} /> : <Text style={{ color: C.textMuted, textAlign: 'center', fontSize: 11, paddingTop: 6 }}>Você pode voltar e ajustar suas respostas.</Text>}
   >
@@ -219,7 +222,13 @@ export default function AboutYouScreen() {
         <Ionicons name={accepted ? 'checkbox' : 'square-outline'} color={accent} size={24} /><Text style={{ flex: 1, fontSize: 13, color: C.textMuted, lineHeight: 20 }}>Li e aceito os termos e a política de privacidade.</Text>
       </Pressable>
       <View style={{ flexDirection: 'row', justifyContent: 'space-evenly', gap: 12 }}><TextLink label="Ler termos" outlined onPress={() => router.push('/institutional/terms')} /><TextLink label="Privacidade" outlined onPress={() => router.push('/institutional/privacy')} /></View>
-      <TextLink label="Revisar minhas respostas" onPress={() => go(0)} />
+    </>}
+    {step === 9 && <>
+      <Note>{d.goal} · Atividade: {d.activityLevel}.{d.nutritionist ? ` Solicitação para ${d.nutritionist.nome} será enviada ao criar a conta.` : ' Você poderá conectar um nutricionista depois.'}</Note>
+      <View style={{ backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 14, padding: 16, gap: 8 }}>
+        {[["Nome", d.name], ["Nascimento", d.birthDate], ["Sexo", d.sexo], ["Objetivo", d.goal], ["Motivação", d.motivation], ["Atividade", d.activityLevel], ["Peso e altura", `${d.weight} kg · ${d.height} cm`], ["Peso desejado", `${d.targetWeight} kg`], ["Meta de água", `${d.waterGoal} L/dia`], ["Preferências", d.restrictions.join(', ')], ["Observações", d.healthNote], ["Como nos conheceu", d.origin], ["E-mail", d.email]].map(([label, value]) => <Text key={label} style={{ color: C.textMuted, fontSize: 13 }}>{label}: <Text style={{ color: C.text, fontWeight: '700' }}>{value || '—'}</Text></Text>)}
+      </View>
+      <TextLink label="Revisar minhas respostas" onPress={startReview} />
     </>}
   </OnboardingShell>;
 }

@@ -10,9 +10,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
-export function OnboardingShell({ title, subtitle, children, onBack, step, total, action, onAction, disabled, busy, error, footer, eyebrow = 'SEU NOVO COMEÇO' }: {
+export function OnboardingShell({ title, subtitle, children, onBack, step, total, action, onAction, disabled, busy, error, footer, headerRight, eyebrow = 'SEU NOVO COMEÇO' }: {
   title: string; subtitle: string; children: ReactNode; onBack: () => void; step?: number; total?: number;
-  action?: string; onAction?: () => void; disabled?: boolean; busy?: boolean; error?: string; footer?: ReactNode; eyebrow?: string;
+  action?: string; onAction?: () => void; disabled?: boolean; busy?: boolean; error?: string; footer?: ReactNode; headerRight?: ReactNode; eyebrow?: string;
 }) {
   const { colors: C, isDark } = usePremiumTheme();
   const fonts = useBrandFonts();
@@ -28,7 +28,7 @@ export function OnboardingShell({ title, subtitle, children, onBack, step, total
         <View style={styles.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={onBack} disabled={busy} style={[styles.back, { backgroundColor: C.primarySoft }]}><Ionicons name="arrow-back" size={20} color={accent} /></Pressable>
           <BrandLogo markOnly width={44} style={{ position: 'absolute', left: '50%', marginLeft: -22 }} />
-          <Text style={{ color: C.textMuted, fontSize: 12, fontFamily: fonts.medium }}>{step !== undefined && total ? `${step + 1}/${total}` : ''}</Text>
+          {headerRight ?? <Text style={{ color: C.textMuted, fontSize: 12, fontFamily: fonts.medium }}>{step !== undefined && total ? `${step + 1}/${total}` : ''}</Text>}
         </View>
         {step !== undefined && total && <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: step + 1 }} style={[styles.track, { backgroundColor: C.border }]}><View style={{ width: `${((step + 1) / total) * 100}%`, height: 4, borderRadius: 2, backgroundColor: C.primary }} /></View>}
         <Animated.View key={step ?? title} entering={reduce ? undefined : FadeInDown.duration(240)} style={styles.body}>

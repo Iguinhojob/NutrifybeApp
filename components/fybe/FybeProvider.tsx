@@ -8,7 +8,7 @@ import { tutorialById, TUTORIALS, type FybeContext, type Tutorial } from './cont
 import { DEFAULT_PREFS, loadFybePrefs, saveFybePrefs, type FybePrefs } from './storage';
 
 /** Telas autenticadas em que o Fybe aparece. */
-export const FYBE_ROUTES = ['/', '/plan', '/messages', '/trends', '/profile', '/history', '/water', '/bmi'];
+export const FYBE_ROUTES = ['/', '/plan', '/messages', '/trends', '/profile', '/history', '/water'];
 
 type Progress = { tutorialId: string; index: number };
 /** `center`: elemento no meio da tela. `start`: elemento no topo (usado quando ele e o cartão não cabem juntos). */
