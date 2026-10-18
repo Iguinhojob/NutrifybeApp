@@ -1,6 +1,7 @@
 ﻿import { useAuth } from '@/context/auth';
 import { useDiary } from '@/context/diary';
 import { EvolucaoCaloriasDiaria } from '@/components/EvolucaoCaloriasDiaria';
+import GraficoPeso from '@/components/GraficoPeso';
 import { useAppLayout } from '@/hooks/useAppLayout';
 import { usePremiumTheme } from '@/context/theme';
 import { measurementError, suggestedWaterGoal } from '@/utils/onboarding';
@@ -9,34 +10,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FybeTarget, FybeTourSpacer, useFybeScroll } from '@/components/fybe';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
 const GOALS = ['Perder peso', 'Manter peso', 'Ganhar massa', 'Melhorar saúde'];
-
-type ChartPoint = { value: number | null; date: Date; key?: string };
-function LineTrendChart({ allPoints, target, targetLabel, emptyText, C }: { allPoints: ChartPoint[]; target: number; targetLabel: string; emptyText: string; C: any }) {
-  const points = allPoints.slice(-7).filter((point): point is ChartPoint & { value: number } => typeof point.value === 'number' && Number.isFinite(point.value));
-  if (!points.length) return <View style={{ height: 170, alignItems: 'center', justifyContent: 'center', gap: 7 }}><Ionicons name="analytics-outline" size={32} color={C.textDim} /><Text style={{ color: C.textMuted }}>{emptyText}</Text></View>;
-  const values = [...points.map(point => point.value), ...(Number.isFinite(target) ? [target] : [])];
-  const min = Math.min(...values); const max = Math.max(...values); const range = Math.max(max - min, 1);
-  const y = (value: number) => 25 + ((max - value) / range) * 105;
-  const x = (index: number) => points.length === 1 ? 160 : 32 + (index / (points.length - 1)) * 256;
-  const linePoints = points.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
-  return <View><Svg width="100%" height={175} viewBox="0 0 320 175">
-    {[25, 77.5, 130].map(position => <Line key={position} x1="28" x2="292" y1={position} y2={position} stroke={C.border} strokeWidth="1" />)}
-    {Number.isFinite(target) && target > 0 && <><Line x1="28" x2="292" y1={y(target)} y2={y(target)} stroke={C.warning} strokeWidth="1.5" strokeDasharray="6 5" /><SvgText x="290" y={Math.max(y(target) - 5, 11)} fill={C.warning} fontSize="9" textAnchor="end">{targetLabel} {target}</SvgText></>}
-    {points.length > 1 && <Polyline points={linePoints} fill="none" stroke={C.primary} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />}
-    {points.map((point, index) => <Circle key={`${point.date.toISOString()}-${index}`} cx={x(index)} cy={y(point.value)} r="5" fill={C.surface} stroke={C.primary} strokeWidth="3" />)}
-    {points.map((point, index) => <SvgText key={`value-${index}`} x={x(index)} y={Math.max(y(point.value) - 10, 11)} fill={C.text} fontSize="9" fontWeight="700" textAnchor="middle">{point.value}</SvgText>)}
-    {points.map((point, index) => <SvgText key={`date-${index}`} x={x(index)} y="157" fill={C.textMuted} fontSize="8" textAnchor="middle">{point.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</SvgText>)}
-  </Svg><Text style={{ color: C.textDim, fontSize: 10, textAlign: 'center' }}>Últimos {points.length} {points.length === 1 ? 'registro' : 'registros'}</Text></View>;
-}
-
 
 export default function TrendsScreen() {
   const fybeScroll = useFybeScroll('/trends');
   const { user, updateUser } = useAuth(); const { measurements, ready, addMeasurement } = useDiary();
-  const { colors: C } = usePremiumTheme(); const { topPad } = useAppLayout(); const params = useLocalSearchParams<{ edit?: string }>();
+  const { colors: C, isDark } = usePremiumTheme(); const { topPad } = useAppLayout(); const params = useLocalSearchParams<{ edit?: string }>();
   const [editing, setEditing] = useState(false); const [form, setForm] = useState({ weight: '', height: '', targetWeight: '', waterGoal: '', goal: '' });
   const [chartMode, setChartMode] = useState<'calories' | 'weight'>('calories');
   const openEditor = useCallback(() => { setForm({ weight: user?.weight || '', height: user?.height || '', targetWeight: user?.targetWeight || '', waterGoal: user?.waterGoal || String(suggestedWaterGoal(user?.weight || '', user?.activityLevel)), goal: user?.goal || '' }); setEditing(true); }, [user]);
@@ -71,7 +51,7 @@ export default function TrendsScreen() {
     </View></FybeTarget>
     <FybeTarget id="trends.chart" style={{ marginBottom: 14 }}>
       <View style={card}><Text style={{ color: C.text, fontSize: 16, fontWeight: '800' }}>Gráfico de evolução</Text><Text style={{ color: C.textMuted, fontSize: 12, marginTop: 3 }}>Acompanhe as calorias acumuladas no dia ou consulte seu peso.</Text><View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 12, padding: 4, marginTop: 14 }}>{([{ key: 'calories', label: 'Calorias do dia' }, { key: 'weight', label: 'Peso' }] as const).map(item => <TouchableOpacity key={item.key} onPress={() => setChartMode(item.key)} style={{ flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center', backgroundColor: chartMode === item.key ? C.primary : 'transparent' }}><Text style={{ color: chartMode === item.key ? '#fff' : C.textMuted, fontWeight: '800', fontSize: 13 }}>{item.label}</Text></TouchableOpacity>)}</View></View>
-      {!ready ? <View style={[card, { alignItems: 'center', paddingVertical: 30 }]}><Text style={{ color: C.textMuted }}>Carregando gráfico…</Text></View> : chartMode === 'calories' ? <EvolucaoCaloriasDiaria /> : <View style={card}><Text style={{ color: C.text, fontSize: 16, fontWeight: '800', marginBottom: 8 }}>Histórico de peso</Text><LineTrendChart allPoints={weightPoints} target={Number((user?.targetWeight || '').replace(',', '.'))} targetLabel="Meta" emptyText="Registre seu peso para formar o gráfico." C={C} />{weightRecords.length > 1 && <Text style={{ color: change === 0 ? C.textMuted : change < 0 ? C.success : C.warning, textAlign: 'center', fontWeight: '800', marginTop: 4 }}>{change > 0 ? '+' : ''}{change.toFixed(1)} kg desde o primeiro registro</Text>}</View>}
+      {!ready ? <View style={[card, { alignItems: 'center', paddingVertical: 30 }]}><Text style={{ color: C.textMuted }}>Carregando gráfico…</Text></View> : chartMode === 'calories' ? <EvolucaoCaloriasDiaria /> : <View style={{ gap: 10 }}><GraficoPeso pontos={weightPoints} meta={Number((user?.targetWeight || '').replace(',', '.'))} escuro={isDark} />{weightRecords.length > 1 && <Text style={{ color: C.textMuted, textAlign: 'center', fontWeight: '800', marginTop: 4 }}>{change > 0 ? '+' : ''}{change.toFixed(1)} kg desde o primeiro registro</Text>}</View>}
     </FybeTarget>
     <FybeTarget id="trends.measures"><View style={[card, { marginBottom: 0 }]}>
       <Text style={{ color: C.text, fontSize: 16, fontWeight: '800', marginBottom: 10 }}>Histórico de medidas</Text>

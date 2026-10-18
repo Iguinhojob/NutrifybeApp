@@ -128,6 +128,12 @@ const normalizeMeasurement = (value: any): MeasurementEntry => ({ id: value.id, 
 export type Nutricionista = {
   id: number; nome: string; email: string; crn: string; status: string; ativo: number;
   telefone?: string; especialidade?: string; descricao?: string | null; foto?: string | null; dataCriacao?: string;
+  experienceYears?: number | null; focusAreas?: string[]; consultationModes?: string[];
+};
+export type NotificacaoServidor = { id: number; tipo: string; titulo: string; descricao: string; data: string; lida: boolean };
+export const NotificacoesAPI = {
+  listar: () => request<NotificacaoServidor[]>('/api/notificacoes'),
+  marcarLida: (id: string) => request(`/api/notificacoes/${id}/lida`, { method: 'PUT' }),
 };
 export type NutritionistReview = { nota: number; comentario?: string | null; criadoEm: string };
 export type NutritionistReviewsResponse = { media: number | null; total: number; avaliacoes: NutritionistReview[] };

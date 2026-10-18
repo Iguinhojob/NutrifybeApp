@@ -1,6 +1,8 @@
 import { useAuth } from '@/context/auth';
 import { usePremiumTheme } from '@/context/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 const ICONS: Record<string, { icon: any; color: string }> = {
@@ -12,7 +14,8 @@ const ICONS: Record<string, { icon: any; color: string }> = {
 };
 
 export default function NotificationsScreen() {
-  const { notificacoes, marcarNotificacaoLida } = useAuth();
+  const { notificacoes, marcarNotificacaoLida, refreshUser } = useAuth();
+  useFocusEffect(useCallback(() => { void refreshUser().catch(() => {}); }, [refreshUser]));
   const { colors } = usePremiumTheme();
 
   const naoLidas = notificacoes.filter(n => !n.lida).length;

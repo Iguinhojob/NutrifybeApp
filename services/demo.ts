@@ -3,7 +3,7 @@ import type { Nutricionista } from './api';
 export type NutritionistProfile = Nutricionista & {
   rating?: number;
   reviewCount?: number;
-  experienceYears?: number;
+  experienceYears?: number | null;
   bio?: string;
   focusAreas?: string[];
   consultationModes?: string[];

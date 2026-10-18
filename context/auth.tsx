@@ -3,7 +3,7 @@ import { clearSessionToken, loadSessionToken, saveSessionToken } from '@/service
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEMO_MODE, findDemoNutritionistById, findNutritionist } from '@/services/demo';
 import { ageFromBirthDate, isValidEmail, isValidPassword, measurementError } from '@/utils/onboarding';
-import { PacientesAPI, NutricionistasAPI, setAccessToken } from '@/services/api';
+import { PacientesAPI, NutricionistasAPI, NotificacoesAPI, setAccessToken } from '@/services/api';
 import type { Paciente, Nutricionista } from '@/services/api';
 
 // ── Tipos do contexto ─────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export type Vinculo = {
 
 export type Notificacao = {
   id: string;
-  tipo: 'plano_atualizado' | 'observacao' | 'vinculo_aceito' | 'vinculo_recusado' | 'geral';
+  tipo: 'plano_atualizado' | 'observacao' | 'vinculo_aceito' | 'vinculo_recusado' | 'acompanhamento_encerrado' | 'geral';
   titulo: string;
   descricao: string;
   data: string;
@@ -135,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [restoring, setRestoring]     = useState(!DEMO_MODE);
+  const [notificationsOwner, setNotificationsOwner] = useState<string | null>(null);
   const demoProfiles = useRef(new Map<string, LocalProfile>());
   const loadLocalProfiles = async () => {
     const raw = await AsyncStorage.getItem(LOCAL_PROFILES_KEY);
@@ -143,6 +144,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     demoProfiles.current = new Map(profiles.map(profile => [profile.email.toLowerCase(), profile]));
   };
   const saveLocalProfiles = () => AsyncStorage.setItem(LOCAL_PROFILES_KEY, JSON.stringify([...demoProfiles.current.values()]));
+
+  useEffect(() => {
+    let active = true;
+    const owner = user ? `${DEMO_MODE ? 'demo' : 'conta'}:${user.id}` : null;
+    setNotificationsOwner(null);
+    setNotificacoes([]);
+    if (!owner) return () => { active = false; };
+    (async () => {
+      let local: Notificacao[] = [];
+      try { local = JSON.parse(await AsyncStorage.getItem(`nutrifybe.notifications:${owner}`) || '[]'); } catch { /* Mantém a lista vazia. */ }
+      if (!Array.isArray(local)) local = [];
+      let remote: Notificacao[] = [];
+      if (!DEMO_MODE) {
+        try { remote = (await NotificacoesAPI.listar()).map(n => ({ ...n, id: `server:${n.id}`, tipo: n.tipo as Notificacao['tipo'], data: new Date(n.data).toLocaleString('pt-BR') })); } catch { /* Eventos locais continuam disponíveis. */ }
+      }
+      if (active) { setNotificacoes(prev => [...remote, ...local.filter(n => !n.id.startsWith('server:')), ...prev.filter(n => !local.some(saved => saved.id === n.id))]); setNotificationsOwner(owner); }
+    })();
+    return () => { active = false; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const currentOwner = user ? `${DEMO_MODE ? 'demo' : 'conta'}:${user.id}` : null;
+    if (notificationsOwner && notificationsOwner === currentOwner) void AsyncStorage.setItem(`nutrifybe.notifications:${notificationsOwner}`, JSON.stringify(notificacoes.filter(n => !n.id.startsWith('server:')))).catch(() => {});
+  }, [notificationsOwner, notificacoes, user?.id]);
 
   // ── Restaurar sessão salva ─────────────────────────────────────────────────
   useEffect(() => {
@@ -207,9 +232,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const status: VinculoStatus = paciente.status === 'accepted' ? 'ativo' : 'pendente';
           setVinculo({ nutricionista: nutri, status });
 
-          if (paciente.status === 'accepted') {
-            addNotificacao('vinculo_aceito', 'Nutricionista vinculado', `Você está sendo acompanhado por ${nutri.nome}.`);
-          }
         } catch {
           // Nutricionista não encontrado, ignora
         }
@@ -431,6 +453,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     if (!user || DEMO_MODE) return;
     const paciente = await PacientesAPI.getMe();
+    try {
+      const remote = await NotificacoesAPI.listar();
+      setNotificacoes(prev => [...remote.map(n => ({ ...n, id: `server:${n.id}`, tipo: n.tipo as Notificacao['tipo'], data: new Date(n.data).toLocaleString('pt-BR') })), ...prev.filter(n => !n.id.startsWith('server:'))]);
+    } catch { /* Não impede a atualização do perfil. */ }
     const freshUser = pacienteToUser(paciente);
     if (JSON.stringify(freshUser) !== JSON.stringify(user)) setUser(freshUser);
     if (!paciente.nutricionistaId) { setVinculo(null); return; }
@@ -443,6 +469,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const marcarNotificacaoLida = (id: string) => {
+    if (id.startsWith('server:')) void NotificacoesAPI.marcarLida(id.slice(7)).catch(() => {});
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
   };
 
