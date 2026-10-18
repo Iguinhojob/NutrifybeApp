@@ -90,8 +90,8 @@ export default function ProfileScreen() {
   const selectProfilePhoto = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.65, base64: true });
-      if (result.canceled || !result.assets[0]?.base64) return;
-      const asset = result.assets[0];
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset?.base64) return;
       if (asset.base64.length > 3_499_900) return toast.show({ tone: 'error', title: 'Imagem muito grande', message: 'Escolha uma foto menor para salvar no perfil.' });
       const mime = asset.mimeType || 'image/jpeg';
       await updateUser({ foto: `data:${mime};base64,${asset.base64}` });

@@ -7,7 +7,6 @@
     "icon": "./assets/images/app-icon-1024.png",
     "scheme": "nutrifybe",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -17,7 +16,6 @@
         "foregroundImage": "./assets/images/app-icon-1024.png",
         "monochromeImage": "./assets/images/icone-roxo.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -40,7 +38,11 @@
         }
       ],
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-image",
+      "expo-sharing",
+      "expo-web-browser",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

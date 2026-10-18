@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   area: { flexDirection: 'row', alignItems: 'center' }, eixo: { height: ALTURA + 12, width: 36, justifyContent: 'space-between', marginRight: 8 },
   rotuloEixo: { fontSize: 10, textAlign: 'right' }, grafico: { height: ALTURA, flex: 1 },
   linha: { position: 'absolute', left: 0, right: 0, height: 1 }, linhaMeta: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1.5, borderStyle: 'dashed' },
-  colunas: { ...StyleSheet.absoluteFillObject, flexDirection: 'row', alignItems: 'flex-end' }, coluna: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  colunas: { ...StyleSheet.absoluteFill, flexDirection: 'row', alignItems: 'flex-end' }, coluna: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   barra: { width: '65%', maxWidth: 44, borderTopLeftRadius: 6, borderTopRightRadius: 6 }, valor: { fontSize: 9, fontWeight: '700', marginBottom: 3 },
   datas: { flexDirection: 'row', marginTop: 6 }, data: { flex: 1, fontSize: 9, textAlign: 'center' },
   rodape: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, gap: 12 }, atual: { fontSize: 24, fontWeight: '800' },
